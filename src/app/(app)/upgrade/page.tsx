@@ -13,6 +13,7 @@ const TIERS = [
     name: "Free",
     price: "₹0",
     priceId: undefined as string | undefined,
+    plan: undefined as "pro" | "elite" | undefined,
     perks: ["3 autopsies lifetime", "Basic profile", "30-day history"],
   },
   {
@@ -20,12 +21,14 @@ const TIERS = [
     price: "₹999/mo",
     popular: true,
     priceId: PRO,
+    plan: "pro" as const,
     perks: ["Unlimited autopsies", "Patterns + PDF", "Forever history"],
   },
   {
     name: "Elite",
     price: "₹4,999/mo",
     priceId: ELITE,
+    plan: "elite" as const,
     perks: ["Everything in Pro", "Predictive alerts", "Priority routing"],
   },
 ];
@@ -33,6 +36,7 @@ const TIERS = [
 export default function UpgradePage() {
   const [plan, setPlan] = useState("free");
   const [note, setNote] = useState<string | null>(null);
+  const [stripeCustomerId, setStripeCustomerId] = useState<string | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -40,23 +44,31 @@ export default function UpgradePage() {
       if (!user) return;
       const { data } = await supabase
         .from("user_profiles")
-        .select("plan")
+        .select("plan, stripe_customer_id")
         .eq("id", user.id)
         .single();
       setPlan(data?.plan ?? "free");
+      setStripeCustomerId(data?.stripe_customer_id ?? null);
     });
   }, []);
 
-  async function checkout(priceId?: string) {
+  async function openBillingPortal() {
+    const res = await fetch("/api/stripe/portal", { method: "POST" });
+    const json = await res.json().catch(() => ({}));
+    if (json.url) window.location.href = json.url as string;
+    else setNote(json.message ?? json.error ?? "Billing portal unavailable.");
+  }
+
+  async function checkout(priceId?: string, plan?: "pro" | "elite") {
     setNote(null);
-    if (!priceId) {
+    if (!priceId || !plan) {
       setNote("Set Stripe price IDs in .env to enable checkout (free build).");
       return;
     }
     const res = await fetch("/api/stripe/checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ priceId }),
+      body: JSON.stringify({ priceId, plan }),
     });
     const json = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -68,11 +80,18 @@ export default function UpgradePage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="font-heading text-3xl text-text-primary">Upgrade</h1>
-        <p className="mt-1 text-sm text-text-secondary">
-          Current plan: <span className="text-accent-primary">{plan}</span>
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="font-heading text-3xl text-text-primary">Upgrade</h1>
+          <p className="mt-1 text-sm text-text-secondary">
+            Current plan: <span className="text-accent-primary">{plan}</span>
+          </p>
+        </div>
+        {stripeCustomerId && (
+          <Button variant="outline" onClick={openBillingPortal}>
+            Manage billing
+          </Button>
+        )}
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
@@ -104,7 +123,7 @@ export default function UpgradePage() {
               className="mt-8 w-full"
               variant={tier.name === "Free" ? "outline" : "default"}
               disabled={tier.name === "Free"}
-              onClick={() => checkout(tier.priceId)}
+              onClick={() => checkout(tier.priceId, tier.plan)}
             >
               {tier.name === "Free" ? "Included" : "Upgrade"}
             </Button>

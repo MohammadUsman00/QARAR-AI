@@ -3,6 +3,10 @@ import { ensureUserProfile } from "@/lib/profile";
 import { generateAutopsy } from "@/lib/gemini";
 import { getPlanLimits } from "@/lib/plan-limits";
 import { parseRoughInr, titleFromInput } from "@/lib/autopsy";
+import {
+  buildDomainScores,
+  buildMonthlyQualityTrend,
+} from "@/lib/cognitive-aggregate";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
@@ -149,6 +153,14 @@ export async function POST(request: Request) {
     .select("cognitive_biases, estimated_cost_inr")
     .eq("user_id", user.id);
 
+  const { data: allDecisions } = await supabase
+    .from("decisions")
+    .select("domain, outcome_rating, created_at")
+    .eq("user_id", user.id);
+
+  const domainScores = buildDomainScores(allDecisions ?? []);
+  const decisionQualityTrend = buildMonthlyQualityTrend(allDecisions ?? []);
+
   const biasCounts: Record<string, number> = {};
   let totalCost = 0;
   for (const row of allAutopsies ?? []) {
@@ -181,6 +193,8 @@ export async function POST(request: Request) {
     {
       user_id: user.id,
       top_biases: topBiases,
+      domain_scores: domainScores,
+      decision_quality_trend: decisionQualityTrend,
       total_decisions_analyzed: used + 1,
       estimated_total_cost_inr: totalCost,
       profile_confidence: Math.min(0.95, 0.25 + (used + 1) * 0.05),
@@ -191,6 +205,22 @@ export async function POST(request: Request) {
 
   if (upsertErr) {
     console.error("cognitive profile upsert", upsertErr);
+  }
+
+  if (plan === "elite") {
+    for (const bias of result.cognitive_biases) {
+      const freq = biasCounts[bias.name] ?? 0;
+      if (freq >= 2) {
+        await supabase.from("pattern_alerts").insert({
+          user_id: user.id,
+          alert_type: "pattern_match",
+          message: `Pattern alert: "${bias.name}" has appeared ${freq} times across your autopsies.`,
+          decision_id: decision.id,
+          read: false,
+        });
+        break;
+      }
+    }
   }
 
   return NextResponse.json({

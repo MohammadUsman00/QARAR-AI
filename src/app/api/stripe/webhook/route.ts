@@ -54,6 +54,9 @@ export async function POST(request: Request) {
   ) {
     const sub = event.data.object as Stripe.Subscription;
     const customerId = sub.customer as string;
+    const metaPlan = sub.metadata?.plan;
+    const planFromMeta =
+      metaPlan === "elite" ? "elite" : metaPlan === "pro" ? "pro" : null;
     const { data: row } = await supabase
       .from("user_profiles")
       .select("id")
@@ -62,13 +65,38 @@ export async function POST(request: Request) {
 
     if (row?.id) {
       const active = sub.status === "active" || sub.status === "trialing";
+      const plan = !active
+        ? "free"
+        : planFromMeta ?? "pro";
       await supabase
         .from("user_profiles")
         .update({
-          plan: active ? "pro" : "free",
+          plan,
           stripe_subscription_id: active ? sub.id : null,
         })
         .eq("id", row.id);
+    }
+  }
+
+  if (event.type === "invoice.payment_failed") {
+    const invoice = event.data.object as Stripe.Invoice;
+    let email = invoice.customer_email ?? null;
+    if (!email && typeof invoice.customer === "string") {
+      try {
+        const cust = await stripe.customers.retrieve(invoice.customer);
+        if (!cust.deleted && "email" in cust && cust.email) {
+          email = cust.email;
+        }
+      } catch {
+        // ignore — optional enrichment
+      }
+    }
+    if (email) {
+      const { sendPaymentFailedNotice } = await import("@/lib/email");
+      await sendPaymentFailedNotice({
+        to: email,
+        invoiceId: invoice.id ?? undefined,
+      });
     }
   }
 

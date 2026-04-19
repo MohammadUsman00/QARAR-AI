@@ -12,15 +12,26 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { priceId } = (await request.json()) as { priceId?: string };
+  const { priceId, plan = "pro" } = (await request.json()) as {
+    priceId?: string;
+    plan?: "pro" | "elite";
+  };
   if (!priceId) {
     return NextResponse.json({ error: "priceId required" }, { status: 400 });
   }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
+  const { data: profile } = await supabase
+    .from("user_profiles")
+    .select("stripe_customer_id")
+    .eq("id", user.id)
+    .single();
+
   const session = await createCheckoutSession({
     priceId,
+    plan,
+    customerId: profile?.stripe_customer_id ?? null,
     successUrl: `${appUrl}/upgrade?success=1`,
     cancelUrl: `${appUrl}/upgrade`,
     clientReferenceId: user.id,

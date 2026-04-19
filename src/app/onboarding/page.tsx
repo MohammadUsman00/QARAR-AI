@@ -77,6 +77,17 @@ export default function OnboardingPage() {
       return;
     }
 
+    await supabase
+      .from("user_profiles")
+      .update({
+        onboarding_answers: {
+          regrets: selectedRegrets,
+          weakness,
+          why,
+        },
+      })
+      .eq("id", user.id);
+
     const res = await fetch("/api/autopsy/analyze", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

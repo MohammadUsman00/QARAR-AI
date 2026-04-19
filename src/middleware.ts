@@ -9,6 +9,7 @@ const publicPaths = new Set([
   "/signup",
   "/auth/callback",
   "/api/health",
+  "/api/ready",
 ]);
 
 function isPublic(pathname: string) {

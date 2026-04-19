@@ -7,6 +7,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AutopsyResult } from "@/lib/gemini";
+import { downloadAutopsyPdf } from "@/lib/pdf-export";
+import { UpgradeModal } from "@/components/upgrade-modal";
 import { useAppUi } from "@/stores/use-app";
 
 const prompts = [
@@ -61,6 +63,17 @@ export function AutopsyClient() {
   const [typed, setTyped] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loadingIdx, setLoadingIdx] = useState(0);
+  const [showUpgrade, setShowUpgrade] = useState(false);
+  const [pdfAllowed, setPdfAllowed] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/user/me")
+      .then((r) => r.json())
+      .then((d: { limits?: { pdf_export?: boolean } }) => {
+        setPdfAllowed(Boolean(d.limits?.pdf_export));
+      })
+      .catch(() => {});
+  }, []);
 
   const loadExisting = useCallback(async () => {
     if (!decisionId) return;
@@ -147,6 +160,12 @@ export function AutopsyClient() {
     });
     const json = await res.json().catch(() => ({}));
     if (!res.ok) {
+      if (res.status === 403 && json.error === "limit_reached") {
+        setShowUpgrade(true);
+        setError(null);
+        setPhase("input");
+        return;
+      }
       setError(json.error ?? json.message ?? "Analysis failed");
       setPhase("input");
       return;
@@ -159,8 +178,21 @@ export function AutopsyClient() {
 
   const charCount = useMemo(() => raw.length, [raw]);
 
+  function handleExportPdf() {
+    if (!result) return;
+    if (!pdfAllowed) {
+      setShowUpgrade(true);
+      return;
+    }
+    downloadAutopsyPdf(
+      "Qarar autopsy",
+      `${result.full_report_markdown}\n\n---\n${result.root_cause}`,
+    );
+  }
+
   return (
     <div className="mx-auto max-w-3xl pb-24">
+      <UpgradeModal open={showUpgrade} onOpenChange={setShowUpgrade} />
       <header className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="font-heading text-2xl text-text-primary md:text-3xl">
@@ -451,10 +483,13 @@ export function AutopsyClient() {
 
             <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
               <Button variant="outline" onClick={() => window.print()}>
-                Export / Print
+                Print
+              </Button>
+              <Button variant="outline" onClick={handleExportPdf}>
+                Export PDF
               </Button>
               <Button variant="ghost" onClick={() => router.push("/history")}>
-                Save to history
+                History
               </Button>
               <Button
                 onClick={() => {

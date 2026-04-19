@@ -15,6 +15,7 @@ export function getStripe(): Stripe | null {
 export async function createCheckoutSession(params: {
   priceId: string;
   customerId?: string | null;
+  plan: "pro" | "elite";
   successUrl: string;
   cancelUrl: string;
   clientReferenceId: string;
@@ -28,6 +29,22 @@ export async function createCheckoutSession(params: {
     success_url: params.successUrl,
     cancel_url: params.cancelUrl,
     client_reference_id: params.clientReferenceId,
+    metadata: { plan: params.plan },
+    subscription_data: {
+      metadata: { plan: params.plan },
+    },
     ...(params.customerId ? { customer: params.customerId } : {}),
+  });
+}
+
+export async function createBillingPortalSession(params: {
+  customerId: string;
+  returnUrl: string;
+}) {
+  const s = getStripe();
+  if (!s) return null;
+  return s.billingPortal.sessions.create({
+    customer: params.customerId,
+    return_url: params.returnUrl,
   });
 }

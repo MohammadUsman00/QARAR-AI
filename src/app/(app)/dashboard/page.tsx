@@ -85,12 +85,12 @@ export default async function DashboardPage() {
   }));
 
   const domainScores = (cog?.domain_scores as Record<string, number> | null) ?? {
-    Career: 6,
-    Relationships: 5,
-    Money: 6,
-    Health: 7,
-    Social: 5,
-    Personal: 6,
+    career: 5,
+    relationship: 5,
+    financial: 5,
+    health: 5,
+    social: 5,
+    other: 5,
   };
 
   const radarData = Object.entries(domainScores).map(([domain, score]) => ({
@@ -100,13 +100,22 @@ export default async function DashboardPage() {
 
   const totalDecisions = cog?.total_decisions_analyzed ?? 0;
   const estCost = Number(cog?.estimated_total_cost_inr ?? 0);
-  const qualityScore = 6.2;
-  const trendUp = true;
 
-  const lineData = Array.from({ length: 12 }).map((_, i) => ({
-    month: `${i + 1}m`,
-    score: Math.min(10, 4 + i * 0.35 + Math.sin(i) * 0.4),
-  }));
+  const trendRows =
+    (cog?.decision_quality_trend as { month: string; score: number }[] | null) ??
+    [];
+  const lineData =
+    trendRows.length > 0
+      ? trendRows
+      : Array.from({ length: 12 }).map((_, i) => ({
+          month: `${i + 1}m`,
+          score: Math.min(10, 4 + i * 0.35 + Math.sin(i) * 0.4),
+        }));
+  const qualityScore =
+    trendRows.length > 0 ? trendRows[trendRows.length - 1]!.score : 6.2;
+  const prevScore =
+    trendRows.length > 1 ? trendRows[trendRows.length - 2]!.score : qualityScore;
+  const trendUp = qualityScore >= prevScore;
 
   return (
     <div className="space-y-8">

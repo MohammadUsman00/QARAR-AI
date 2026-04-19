@@ -48,12 +48,12 @@ export function PatternsClient({
   }));
 
   const domainScores = (cognitive?.domain_scores as Record<string, number> | null) ?? {
-    Career: 6,
-    Relationships: 5,
-    Money: 6,
-    Health: 7,
-    Social: 5,
-    Personal: 6,
+    career: 5,
+    relationship: 5,
+    financial: 5,
+    health: 5,
+    social: 5,
+    other: 5,
   };
 
   const radarData = Object.entries(domainScores).map(([domain, score]) => ({

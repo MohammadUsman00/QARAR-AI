@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { getPlanLimits } from "@/lib/plan-limits";
 
 type Row = {
   id: string;
@@ -20,11 +21,18 @@ export default function HistoryPage() {
   const [domain, setDomain] = useState<string>("all");
   const [q, setQ] = useState("");
   const [sort, setSort] = useState<"new" | "old">("new");
+  const [userPlan, setUserPlan] = useState<string>("free");
 
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) return;
+      const { data: prof } = await supabase
+        .from("user_profiles")
+        .select("plan")
+        .eq("id", user.id)
+        .single();
+      setUserPlan(prof?.plan ?? "free");
       const { data } = await supabase
         .from("decisions")
         .select("id, title, domain, created_at, outcome_rating")
@@ -35,12 +43,20 @@ export default function HistoryPage() {
   }, [sort]);
 
   const filtered = useMemo(() => {
-    return rows
+    const limits = getPlanLimits(userPlan);
+    const historyDays = limits.history_days;
+    let list = rows;
+    if (historyDays !== Number.POSITIVE_INFINITY) {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - historyDays);
+      list = list.filter((r) => new Date(r.created_at) >= cutoff);
+    }
+    return list
       .filter((r) => (domain === "all" ? true : r.domain === domain))
       .filter((r) =>
         q.trim() ? r.title.toLowerCase().includes(q.toLowerCase()) : true,
       );
-  }, [rows, domain, q]);
+  }, [rows, domain, q, userPlan]);
 
   return (
     <div className="space-y-6">
@@ -49,6 +65,12 @@ export default function HistoryPage() {
         <p className="mt-1 text-sm text-text-secondary">
           Every autopsy you&apos;ve run, searchable and filterable.
         </p>
+        {userPlan === "free" && (
+          <p className="mt-2 text-xs text-text-tertiary">
+            Free plan: showing the last {getPlanLimits("free").history_days} days. Upgrade for full
+            history.
+          </p>
+        )}
       </div>
 
       <div className="sticky top-0 z-10 space-y-3 border-b border-border-subtle bg-bg-primary/90 py-3 backdrop-blur">
