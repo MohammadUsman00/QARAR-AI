@@ -43,6 +43,10 @@ create table if not exists public.autopsies (
   full_report text,
   model_version text,
   tokens_used int,
+  prompt_version text,
+  schema_version text,
+  request_id text,
+  latency_ms int,
   created_at timestamptz default now()
 );
 
