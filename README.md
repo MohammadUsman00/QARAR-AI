@@ -25,8 +25,10 @@
 8. [Database](#database)
 9. [API surface](#api-surface)
 10. [Testing and quality](#testing-and-quality)
-11. [Deployment](#deployment)
-12. [UI reference captures](#ui-reference-captures)
+11. [AI safety and reliability](#ai-safety-and-reliability)
+12. [Privacy and secrets handling](#privacy-and-secrets-handling)
+13. [Deployment](#deployment)
+14. [UI reference captures](#ui-reference-captures)
 
 ---
 
@@ -35,6 +37,7 @@
 Qarar helps users **analyze regretted decisions** with a consistent forensic framework: root causes, cognitive biases, triggers, and actionable reframes. Over time, the product aggregates outcomes into a **cognitive profile** and, on paid tiers, unlocks **pattern views**, **PDF export**, and (Elite) **pattern alerts** when recurring biases are detected.
 
 The application is built as a **Next.js 14** (App Router) monolith with **Supabase** for auth and data, **Google Gemini** for structured analysis, and **Stripe** for subscriptions and the customer billing portal.
+Recent hardening also adds request validation, endpoint rate limiting, prompt-isolation controls, output safety checks, and inference telemetry for better production reliability.
 
 ---
 
@@ -98,6 +101,7 @@ Stripe webhook and checkout flows map purchases to `user_profiles.plan` (`free` 
 | Email | `resend` (optional, e.g. payment failure notices) |
 | PDF | `jspdf` |
 | Tests | Vitest, Testing Library, Playwright |
+| CI | GitHub Actions (`.github/workflows/ci.yml`) |
 
 ---
 
@@ -187,6 +191,7 @@ Copy from `.env.example` and set values in `.env.local` (never commit secrets).
 
 1. In the Supabase SQL editor, run **`supabase/schema.sql`** to create tables, policies, and core objects.
 2. Run **`supabase/migrations/002_profile_extensions.sql`** to add profile fields used by onboarding and notification settings (`onboarding_answers`, `notification_settings`).
+3. Run **`supabase/migrations/003_autopsy_inference_metadata.sql`** to add AI traceability columns (`prompt_version`, `schema_version`, `request_id`, `latency_ms`) for reliability audits.
 
 Enable **Email** auth (and optional OAuth) in Supabase. Set the redirect URL to match your app, for example:
 
@@ -216,11 +221,33 @@ Enable **Email** auth (and optional OAuth) in Supabase. Set the redirect URL to 
 | Command | Description |
 |---------|-------------|
 | `npm run lint` | ESLint (Next.js config) |
+| `npm run typecheck` | TypeScript compiler check (`tsc --noEmit`) |
 | `npm run test` | Vitest with coverage |
 | `npm run test:watch` | Vitest watch mode |
 | `npm run test:e2e` | Playwright end-to-end tests |
 | `npm run test:e2e:ui` | Playwright UI mode |
 | `npm run test:all` | Lint, unit tests, and E2E in sequence |
+
+---
+
+## AI safety and reliability
+
+- **Input validation**: `POST /api/autopsy/analyze` validates request payloads with Zod (`src/lib/api-validation.ts`).
+- **Rate limiting**: AI routes enforce fixed-window request limits per user/IP key (`src/lib/rate-limit.ts`).
+- **Prompt hardening**: untrusted user/context data is explicitly delimited in prompts to reduce instruction hijack risk (`src/lib/gemini.ts`, `src/app/api/patterns/generate/route.ts`).
+- **Timeouts and error taxonomy**: inference paths distinguish timeout/provider/parse/validation errors and return structured failure responses.
+- **Safety checks**: generated autopsy advice passes a high-risk content guard before persistence (`src/lib/llm-safety.ts`).
+- **Telemetry**: structured inference logs include request ID, model version, prompt/schema version, latency, token usage (`src/lib/inference-telemetry.ts`).
+
+---
+
+## Privacy and secrets handling
+
+- Never commit `.env`, `.env.local`, or any credentials file.
+- Keep `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`, and `STRIPE_SECRET_KEY` server-only.
+- Do not log raw secrets, tokens, or webhook signatures.
+- Review `.gitignore` before adding new tooling so generated secret-bearing files stay untracked.
+- Rotate keys immediately if a secret is accidentally exposed.
 
 ---
 
@@ -230,6 +257,7 @@ Enable **Email** auth (and optional OAuth) in Supabase. Set the redirect URL to 
 - **Environment**: Set all variables from [Environment variables](#environment-variables) in the host dashboard.
 - **Stripe**: Create a webhook endpoint pointing to `https://<your-domain>/api/stripe/webhook` and subscribe at minimum to events you handle (e.g. `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_failed`).
 - **Probes**: Use `/api/ready` for readiness and `/api/health` for deeper dependency checks.
+- **Migrations**: apply `schema.sql` and all migrations in order (`002`, `003`) before promoting.
 
 ---
 

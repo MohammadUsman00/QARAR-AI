@@ -1,15 +1,24 @@
 import { createClient } from "@/lib/supabase/server";
 import { ensureUserProfile } from "@/lib/profile";
-import { generateAutopsy } from "@/lib/gemini";
+import { GeminiInferenceError, generateAutopsy } from "@/lib/gemini";
 import { getPlanLimits } from "@/lib/plan-limits";
 import { parseRoughInr, titleFromInput } from "@/lib/autopsy";
+import {
+  autopsyAnalyzeRequestSchema,
+  formatZodError,
+} from "@/lib/api-validation";
 import {
   buildDomainScores,
   buildMonthlyQualityTrend,
 } from "@/lib/cognitive-aggregate";
+import { createRequestId, logInferenceEvent } from "@/lib/inference-telemetry";
+import { assertSafeAutopsyOutput, safetyDisclaimer } from "@/lib/llm-safety";
+import { checkRateLimit, rateLimitKey } from "@/lib/rate-limit";
 import { NextResponse } from "next/server";
+import { z } from "zod";
 
 export async function POST(request: Request) {
+  const requestId = createRequestId();
   const supabase = await createClient();
   const {
     data: { user },
@@ -21,23 +30,78 @@ export async function POST(request: Request) {
 
   await ensureUserProfile(supabase, user.id, user.user_metadata?.full_name);
 
-  const body = await request.json();
-  const {
-    raw_input,
-    domain = "other",
-    emotional_state,
-    decision_date,
-    outcome_rating,
-  } = body as {
-    raw_input?: string;
-    domain?: string;
-    emotional_state?: string;
-    decision_date?: string;
-    outcome_rating?: number;
-  };
+  const aiRateLimit = checkRateLimit({
+    key: rateLimitKey("autopsy-analyze", user.id, request),
+    limit: 10,
+    windowMs: 60 * 60 * 1000,
+  });
 
-  if (!raw_input?.trim()) {
-    return NextResponse.json({ error: "raw_input required" }, { status: 400 });
+  if (!aiRateLimit.allowed) {
+    logInferenceEvent({
+      requestId,
+      route: "/api/autopsy/analyze",
+      userId: user.id,
+      model: process.env.GEMINI_MODEL ?? "gemini-2.0-flash",
+      promptVersion: "not_started",
+      schemaVersion: "not_started",
+      status: "rate_limited",
+    });
+
+    return NextResponse.json(
+      {
+        error: "rate_limited",
+        message: "Too many autopsy requests. Please try again later.",
+        request_id: requestId,
+      },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(aiRateLimit.retryAfterSeconds),
+          "X-RateLimit-Limit": String(aiRateLimit.limit),
+          "X-RateLimit-Remaining": String(aiRateLimit.remaining),
+          "X-RateLimit-Reset": new Date(aiRateLimit.resetAt).toISOString(),
+        },
+      },
+    );
+  }
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json(
+      { error: "invalid_json", request_id: requestId },
+      { status: 400 },
+    );
+  }
+
+  let input;
+  try {
+    input = autopsyAnalyzeRequestSchema.parse(body);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      logInferenceEvent({
+        requestId,
+        route: "/api/autopsy/analyze",
+        userId: user.id,
+        model: process.env.GEMINI_MODEL ?? "gemini-2.0-flash",
+        promptVersion: "not_started",
+        schemaVersion: "request-schema-v1",
+        status: "validation_error",
+        error: JSON.stringify(formatZodError(error)),
+      });
+
+      return NextResponse.json(
+        {
+          error: "validation_error",
+          details: formatZodError(error),
+          request_id: requestId,
+        },
+        { status: 400 },
+      );
+    }
+
+    throw error;
   }
 
   const { data: profile } = await supabase
@@ -81,32 +145,59 @@ export async function POST(request: Request) {
   let ai;
   try {
     ai = await generateAutopsy(
-      raw_input.trim(),
-      domain,
-      emotional_state ?? "unspecified",
+      input.raw_input,
+      input.domain,
+      input.emotional_state,
       pastDecisions ?? [],
       cognitiveRow ?? null,
     );
+    assertSafeAutopsyOutput(ai.result);
   } catch (e) {
+    const code = e instanceof GeminiInferenceError ? e.code : "provider_error";
     const msg = e instanceof Error ? e.message : "Autopsy failed";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    logInferenceEvent({
+      requestId,
+      route: "/api/autopsy/analyze",
+      userId: user.id,
+      model: process.env.GEMINI_MODEL ?? "gemini-2.0-flash",
+      promptVersion: "unknown",
+      schemaVersion: "unknown",
+      status: code,
+      error: msg,
+    });
+
+    return NextResponse.json(
+      {
+        error: code,
+        message: "Autopsy generation failed. Please try again.",
+        request_id: requestId,
+      },
+      { status: code === "timeout" ? 504 : 500 },
+    );
   }
 
-  const { result, tokensApprox } = ai;
+  const {
+    result,
+    tokensApprox,
+    latencyMs,
+    modelVersion,
+    promptVersion,
+    schemaVersion,
+  } = ai;
   const estimated_inr = parseRoughInr(result.estimated_cost_context);
 
-  const title = titleFromInput(raw_input);
+  const title = titleFromInput(input.raw_input);
 
   const { data: decision, error: dErr } = await supabase
     .from("decisions")
     .insert({
       user_id: user.id,
       title,
-      raw_input: raw_input.trim(),
-      domain,
-      emotional_state_before: emotional_state ?? null,
-      outcome_rating: outcome_rating ?? null,
-      decision_date: decision_date ?? null,
+      raw_input: input.raw_input,
+      domain: input.domain,
+      emotional_state_before: input.emotional_state,
+      outcome_rating: input.outcome_rating ?? null,
+      decision_date: input.decision_date ?? null,
     })
     .select("id")
     .single();
@@ -135,8 +226,12 @@ export async function POST(request: Request) {
       immediate_actions: result.immediate_actions,
       pattern_break_strategy: result.pattern_break_strategy,
       full_report: result.full_report_markdown,
-      model_version: process.env.GEMINI_MODEL ?? "gemini-2.0-flash",
+      model_version: modelVersion,
       tokens_used: tokensApprox,
+      prompt_version: promptVersion,
+      schema_version: schemaVersion,
+      request_id: requestId,
+      latency_ms: latencyMs,
     })
     .select("id")
     .single();
@@ -207,6 +302,18 @@ export async function POST(request: Request) {
     console.error("cognitive profile upsert", upsertErr);
   }
 
+  logInferenceEvent({
+    requestId,
+    route: "/api/autopsy/analyze",
+    userId: user.id,
+    model: modelVersion,
+    promptVersion,
+    schemaVersion,
+    status: "success",
+    latencyMs,
+    tokensApprox,
+  });
+
   if (plan === "elite") {
     for (const bias of result.cognitive_biases) {
       const freq = biasCounts[bias.name] ?? 0;
@@ -227,5 +334,7 @@ export async function POST(request: Request) {
     decision_id: decision.id,
     autopsy_id: autopsy.id,
     result,
+    request_id: requestId,
+    safety_disclaimer: safetyDisclaimer(),
   });
 }
