@@ -8,6 +8,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AutopsyResult } from "@/lib/gemini";
 import { downloadAutopsyPdf } from "@/lib/pdf-export";
+import { apiErrorMessage } from "@/lib/api-errors";
 import { UpgradeModal } from "@/components/upgrade-modal";
 import { useAppUi } from "@/stores/use-app";
 
@@ -166,7 +167,7 @@ export function AutopsyClient() {
         setPhase("input");
         return;
       }
-      setError(json.error ?? json.message ?? "Analysis failed");
+      setError(apiErrorMessage(json, res.status));
       setPhase("input");
       return;
     }

@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { useState } from "react";
+import { apiErrorMessage } from "@/lib/api-errors";
 
 const BiasBarChart = dynamic(
   () =>
@@ -33,13 +34,20 @@ export function PatternsClient({
     (cognitive?.narrative_summary as string | undefined) ?? null,
   );
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function regenerate() {
     setLoading(true);
+    setError(null);
     const res = await fetch("/api/patterns/generate", { method: "POST" });
     const json = await res.json().catch(() => ({}));
     setLoading(false);
-    if (res.ok && json.narrative) setNarrative(json.narrative as string);
+    if (res.ok && json.narrative) {
+      setNarrative(json.narrative as string);
+      return;
+    }
+
+    setError(apiErrorMessage(json, res.status));
   }
   const top = (cognitive?.top_biases as { bias?: string; frequency?: number }[] | undefined) ?? [];
   const biasData = top.slice(0, 5).map((b) => ({
@@ -140,6 +148,7 @@ export function PatternsClient({
             >
               {loading ? "Generating…" : "Regenerate portrait"}
             </Button>
+            {error && <p className="text-xs text-red-300">{error}</p>}
           </CardContent>
         </Card>
 

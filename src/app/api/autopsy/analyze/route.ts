@@ -12,7 +12,11 @@ import {
   buildMonthlyQualityTrend,
 } from "@/lib/cognitive-aggregate";
 import { createRequestId, logInferenceEvent } from "@/lib/inference-telemetry";
-import { assertSafeAutopsyOutput, safetyDisclaimer } from "@/lib/llm-safety";
+import {
+  assertSafeAutopsyOutput,
+  detectCrisisInput,
+  safetyDisclaimer,
+} from "@/lib/llm-safety";
 import { checkRateLimit, rateLimitKey } from "@/lib/rate-limit";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -30,7 +34,8 @@ export async function POST(request: Request) {
 
   await ensureUserProfile(supabase, user.id, user.user_metadata?.full_name);
 
-  const aiRateLimit = checkRateLimit({
+  const aiRateLimit = await checkRateLimit({
+    scope: "autopsy-analyze",
     key: rateLimitKey("autopsy-analyze", user.id, request),
     limit: 10,
     windowMs: 60 * 60 * 1000,
@@ -102,6 +107,30 @@ export async function POST(request: Request) {
     }
 
     throw error;
+  }
+
+  const crisis = detectCrisisInput(input.raw_input);
+  if (crisis.detected) {
+    logInferenceEvent({
+      requestId,
+      route: "/api/autopsy/analyze",
+      userId: user.id,
+      model: process.env.GEMINI_MODEL ?? "gemini-2.0-flash",
+      promptVersion: "not_started",
+      schemaVersion: "request-schema-v1",
+      status: "validation_error",
+      error: "crisis_detected",
+    });
+
+    return NextResponse.json(
+      {
+        error: "crisis_detected",
+        message: crisis.message,
+        request_id: requestId,
+        safety_disclaimer: safetyDisclaimer(),
+      },
+      { status: 422 },
+    );
   }
 
   const { data: profile } = await supabase

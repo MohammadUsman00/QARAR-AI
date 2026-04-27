@@ -1,5 +1,6 @@
 import { autopsyAnalyzeRequestSchema } from "@/lib/api-validation";
-import { assertSafeAutopsyOutput } from "@/lib/llm-safety";
+import { apiErrorMessage } from "@/lib/api-errors";
+import { assertSafeAutopsyOutput, detectCrisisInput } from "@/lib/llm-safety";
 import { checkRateLimit } from "@/lib/rate-limit";
 import type { AutopsyResult } from "@/lib/gemini";
 
@@ -74,17 +75,48 @@ describe("AI hardening utilities", () => {
     ).toThrow("Unsafe advice pattern");
   });
 
-  test("enforces fixed-window rate limits", () => {
+  test("detects crisis input before inference", () => {
+    const result = detectCrisisInput("I feel suicidal and want to die tonight.");
+
+    expect(result.detected).toBe(true);
+    expect(result.message).toContain("outside what Qarar should analyze");
+  });
+
+  test("maps API error codes to user-safe messages", () => {
+    expect(apiErrorMessage({ error: "rate_limited" }, 429)).toContain(
+      "request limit",
+    );
+    expect(apiErrorMessage({ error: "provider_error" }, 500)).toContain(
+      "temporarily unavailable",
+    );
+  });
+
+  test("enforces fixed-window rate limits", async () => {
     const key = `test:${Date.now()}:${Math.random()}`;
 
     expect(
-      checkRateLimit({ key, limit: 2, windowMs: 60_000 }).allowed,
+      (await checkRateLimit({
+        scope: "test",
+        key,
+        limit: 2,
+        windowMs: 60_000,
+      })).allowed,
     ).toBe(true);
     expect(
-      checkRateLimit({ key, limit: 2, windowMs: 60_000 }).allowed,
+      (await checkRateLimit({
+        scope: "test",
+        key,
+        limit: 2,
+        windowMs: 60_000,
+      })).allowed,
     ).toBe(true);
     expect(
-      checkRateLimit({ key, limit: 2, windowMs: 60_000 }).allowed,
+      (await checkRateLimit({
+        scope: "test",
+        key,
+        limit: 2,
+        windowMs: 60_000,
+      })).allowed,
     ).toBe(false);
   });
 });

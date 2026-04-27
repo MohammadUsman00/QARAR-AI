@@ -35,7 +35,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const aiRateLimit = checkRateLimit({
+  const aiRateLimit = await checkRateLimit({
+    scope: "patterns-generate",
     key: rateLimitKey("patterns-generate", user.id, request),
     limit: 6,
     windowMs: 60 * 60 * 1000,
