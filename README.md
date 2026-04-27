@@ -192,6 +192,7 @@ Copy from `.env.example` and set values in `.env.local` (never commit secrets).
 1. In the Supabase SQL editor, run **`supabase/schema.sql`** to create tables, policies, and core objects.
 2. Run **`supabase/migrations/002_profile_extensions.sql`** to add profile fields used by onboarding and notification settings (`onboarding_answers`, `notification_settings`).
 3. Run **`supabase/migrations/003_autopsy_inference_metadata.sql`** to add AI traceability columns (`prompt_version`, `schema_version`, `request_id`, `latency_ms`) for reliability audits.
+4. Run **`supabase/migrations/004_durable_ai_rate_limits.sql`** to enable durable AI route limits across serverless instances.
 
 Enable **Email** auth (and optional OAuth) in Supabase. Set the redirect URL to match your app, for example:
 
@@ -233,11 +234,12 @@ Enable **Email** auth (and optional OAuth) in Supabase. Set the redirect URL to 
 ## AI safety and reliability
 
 - **Input validation**: `POST /api/autopsy/analyze` validates request payloads with Zod (`src/lib/api-validation.ts`).
-- **Rate limiting**: AI routes enforce fixed-window request limits per user/IP key (`src/lib/rate-limit.ts`).
+- **Rate limiting**: AI routes enforce fixed-window request limits per user/IP key with Supabase-backed durable counters and local test/dev fallback (`src/lib/rate-limit.ts`).
 - **Prompt hardening**: untrusted user/context data is explicitly delimited in prompts to reduce instruction hijack risk (`src/lib/gemini.ts`, `src/app/api/patterns/generate/route.ts`).
 - **Timeouts and error taxonomy**: inference paths distinguish timeout/provider/parse/validation errors and return structured failure responses.
-- **Safety checks**: generated autopsy advice passes a high-risk content guard before persistence (`src/lib/llm-safety.ts`).
+- **Safety checks**: user input is screened for crisis/self-harm patterns before inference, and generated autopsy advice passes a high-risk content guard before persistence (`src/lib/llm-safety.ts`).
 - **Telemetry**: structured inference logs include request ID, model version, prompt/schema version, latency, token usage (`src/lib/inference-telemetry.ts`).
+- **Security headers**: baseline CSP, frame, referrer, MIME, and permissions headers are configured in `next.config.mjs`.
 
 ---
 
@@ -257,7 +259,7 @@ Enable **Email** auth (and optional OAuth) in Supabase. Set the redirect URL to 
 - **Environment**: Set all variables from [Environment variables](#environment-variables) in the host dashboard.
 - **Stripe**: Create a webhook endpoint pointing to `https://<your-domain>/api/stripe/webhook` and subscribe at minimum to events you handle (e.g. `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_failed`).
 - **Probes**: Use `/api/ready` for readiness and `/api/health` for deeper dependency checks.
-- **Migrations**: apply `schema.sql` and all migrations in order (`002`, `003`) before promoting.
+- **Migrations**: apply `schema.sql` and all migrations in order (`002`, `003`, `004`) before promoting.
 
 ---
 

@@ -76,11 +76,21 @@ create table if not exists public.pattern_alerts (
   created_at timestamptz default now()
 );
 
+create table if not exists public.ai_rate_limits (
+  scope text not null,
+  identifier_hash text not null,
+  window_start timestamptz not null,
+  count int not null default 0,
+  updated_at timestamptz default now(),
+  primary key (scope, identifier_hash, window_start)
+);
+
 alter table public.user_profiles enable row level security;
 alter table public.decisions enable row level security;
 alter table public.autopsies enable row level security;
 alter table public.cognitive_profiles enable row level security;
 alter table public.pattern_alerts enable row level security;
+alter table public.ai_rate_limits enable row level security;
 
 create policy "Users read own profile" on public.user_profiles
   for select using (auth.uid() = id);
@@ -100,3 +110,29 @@ create policy "Users CRUD own cognitive profile" on public.cognitive_profiles
 
 create policy "Users CRUD own alerts" on public.pattern_alerts
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+create or replace function public.increment_ai_rate_limit(
+  p_scope text,
+  p_identifier_hash text,
+  p_window_start timestamptz,
+  p_limit int
+)
+returns table(allowed boolean, current_count int)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_count int;
+begin
+  insert into public.ai_rate_limits (scope, identifier_hash, window_start, count, updated_at)
+  values (p_scope, p_identifier_hash, p_window_start, 1, now())
+  on conflict (scope, identifier_hash, window_start)
+  do update set
+    count = public.ai_rate_limits.count + 1,
+    updated_at = now()
+  returning count into v_count;
+
+  return query select v_count <= p_limit, v_count;
+end;
+$$;

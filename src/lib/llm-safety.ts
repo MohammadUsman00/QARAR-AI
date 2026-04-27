@@ -8,6 +8,20 @@ const HIGH_RISK_ADVICE_PATTERNS = [
   /\bharm\s+(yourself|someone|others)\b/i,
 ];
 
+const CRISIS_INPUT_PATTERNS = [
+  /\b(kill|hurt|harm)\s+myself\b/i,
+  /\bsuicid(e|al)\b/i,
+  /\bend\s+my\s+life\b/i,
+  /\bself[-\s]?harm\b/i,
+  /\bcan't\s+go\s+on\b/i,
+  /\bwant\s+to\s+die\b/i,
+];
+
+export type CrisisDetection = {
+  detected: boolean;
+  message: string;
+};
+
 export function assertSafeAutopsyOutput(result: AutopsyResult) {
   const adviceText = [
     result.root_cause,
@@ -23,6 +37,19 @@ export function assertSafeAutopsyOutput(result: AutopsyResult) {
   if (unsafePattern) {
     throw new Error(`Unsafe advice pattern detected: ${unsafePattern.source}`);
   }
+}
+
+export function detectCrisisInput(input: string): CrisisDetection {
+  const detected = CRISIS_INPUT_PATTERNS.some((pattern) => pattern.test(input));
+  if (!detected) {
+    return { detected: false, message: "" };
+  }
+
+  return {
+    detected: true,
+    message:
+      "This sounds urgent and outside what Qarar should analyze. If you might hurt yourself or someone else, contact local emergency services now or reach out to a trusted person immediately. When you are safe, you can return and analyze the decision context.",
+  };
 }
 
 export function safetyDisclaimer() {
