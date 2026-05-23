@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
@@ -43,6 +44,7 @@ export default function OnboardingPage() {
   const [why, setWhy] = useState<string | null>(null);
   const [firstStory, setFirstStory] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -68,6 +70,7 @@ export default function OnboardingPage() {
 
   async function finish() {
     setLoading(true);
+    setError(null);
     const supabase = createClient();
     const {
       data: { user },
@@ -101,7 +104,11 @@ export default function OnboardingPage() {
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       setLoading(false);
-      alert(err.error ?? "Could not run autopsy. You can retry from /autopsy.");
+      setError(
+        (err.message as string) ??
+          (err.error as string) ??
+          "Could not run autopsy. You can retry from /autopsy.",
+      );
       return;
     }
 
@@ -122,8 +129,10 @@ export default function OnboardingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-bg-primary px-4 py-10">
-      <div className="mx-auto max-w-2xl">
+    <div className="relative min-h-screen bg-bg-primary px-4 py-10">
+      <div className="pointer-events-none fixed inset-0 qarar-gradient-bg" aria-hidden />
+      <div className="relative z-10 mx-auto max-w-2xl">
+        <p className="mb-6 font-display text-lg italic text-accent-primary">Qarar — قرار</p>
         <div className="mb-8 h-1 w-full overflow-hidden rounded-full bg-bg-tertiary">
           <motion.div
             className="h-full bg-accent-primary"
@@ -257,13 +266,13 @@ export default function OnboardingPage() {
             <p className="text-text-secondary">
               Describe a decision you regret — anything, in your own words.
             </p>
-            <textarea
+            <Textarea
               value={firstStory}
               onChange={(e) => setFirstStory(e.target.value)}
               rows={8}
               placeholder="I quit my job after one bad meeting with my manager..."
-              className="w-full rounded-xl border border-border-subtle bg-bg-secondary px-4 py-3 text-sm text-text-primary placeholder:text-text-tertiary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary"
             />
+            {error && <p className="text-sm text-accent-danger">{error}</p>}
             <div className="flex gap-3">
               <Button variant="ghost" className="flex-1" onClick={() => setStep(2)}>
                 Back

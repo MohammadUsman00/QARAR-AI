@@ -27,7 +27,35 @@ html {
 }
 
 body {
-  @apply bg-bg-primary text-text-primary antialiased;
+  @apply bg-bg-primary font-sans text-text-primary antialiased;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  @apply font-heading;
+}
+
+/* Shared marketing / auth atmosphere */
+.qarar-gradient-bg {
+  background:
+    radial-gradient(ellipse at top, rgba(107, 140, 255, 0.12), transparent 55%),
+    radial-gradient(ellipse at bottom, rgba(200, 169, 81, 0.1), transparent 50%);
+}
+
+.qarar-surface {
+  border-radius: 0.75rem;
+  border: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--bg-secondary) 80%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+/* Themed native controls */
+select,
+textarea {
   font-family: var(--font-dm), system-ui, sans-serif;
 }
 

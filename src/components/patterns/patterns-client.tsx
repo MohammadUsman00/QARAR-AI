@@ -2,6 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/layout/page-header";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -20,6 +21,10 @@ const DomainRadarChart = dynamic(
     ),
   { ssr: false },
 );
+
+type TriggerEntry = { trigger: string; pattern: string; count: number };
+type RiskState = { state: string; count: number };
+type WorstTime = { hour_bucket: string; count: number };
 
 export function PatternsClient({
   locked,
@@ -46,10 +51,11 @@ export function PatternsClient({
       setNarrative(json.narrative as string);
       return;
     }
-
     setError(apiErrorMessage(json, res.status));
   }
-  const top = (cognitive?.top_biases as { bias?: string; frequency?: number }[] | undefined) ?? [];
+
+  const top =
+    (cognitive?.top_biases as { bias?: string; frequency?: number }[] | undefined) ?? [];
   const biasData = top.slice(0, 5).map((b) => ({
     name: b.bias ?? "—",
     count: b.frequency ?? 1,
@@ -69,19 +75,24 @@ export function PatternsClient({
     score,
   }));
 
+  const triggerMap = (cognitive?.trigger_map as TriggerEntry[] | undefined) ?? [];
+  const highRiskStates = (cognitive?.high_risk_states as RiskState[] | undefined) ?? [];
+  const worstTimes = (cognitive?.worst_decision_times as WorstTime[] | undefined) ?? [];
+  const historySummary = (cognitive?.history_summary as string | undefined) ?? null;
+
   const confidence = Math.round((Number(cognitive?.profile_confidence ?? 0.4) || 0.4) * 100);
   const total = Number(cognitive?.total_decisions_analyzed ?? 0);
 
   return (
     <div className="relative space-y-8">
       {locked && (
-        <div className="rounded-2xl border border-border-active bg-bg-secondary/70 p-6 text-center">
+        <div className="qarar-surface p-6 text-center">
           <div className="font-heading text-xl text-text-primary">
             Pattern intelligence is a Pro feature
           </div>
           <p className="mt-2 text-sm text-text-secondary">
-            You&apos;re on <span className="text-accent-primary">{plan}</span>. Upgrade to unlock full
-            pattern maps, exports, and narrative portraits.
+            You&apos;re on <span className="text-accent-primary">{plan}</span>. Upgrade to unlock
+            full pattern maps, exports, and narrative portraits.
           </p>
           <Button asChild className="mt-4">
             <Link href="/upgrade">View upgrade options</Link>
@@ -90,14 +101,26 @@ export function PatternsClient({
       )}
 
       <div className={locked ? "pointer-events-none select-none blur-sm" : ""}>
-        <div>
-          <h1 className="font-heading text-3xl text-text-primary">My Patterns</h1>
-          <p className="mt-2 text-sm text-text-secondary">
-            Profile confidence:{" "}
-            <span className="text-accent-primary">{confidence}%</span> — based on{" "}
-            <span className="text-text-primary">{total}</span> analyzed decisions.
-          </p>
-        </div>
+        <PageHeader
+          title="My Patterns"
+          description={`Profile confidence ${confidence}% — based on ${total} analyzed decisions.`}
+          action={
+            <Button asChild variant="outline" size="sm">
+              <Link href="/autopsy">New autopsy</Link>
+            </Button>
+          }
+        />
+
+        {historySummary && (
+          <Card className="border-border-subtle">
+            <CardHeader>
+              <CardTitle>History snapshot</CardTitle>
+            </CardHeader>
+            <CardContent className="whitespace-pre-wrap text-sm leading-relaxed text-text-secondary">
+              {historySummary}
+            </CardContent>
+          </Card>
+        )}
 
         <div className="grid gap-6 lg:grid-cols-2">
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
@@ -109,7 +132,9 @@ export function PatternsClient({
                 {biasData.length ? (
                   <BiasBarChart data={biasData} />
                 ) : (
-                  <p className="text-sm text-text-secondary">Not enough data yet.</p>
+                  <p className="text-sm text-text-secondary">
+                    Complete a few autopsies to populate this chart.
+                  </p>
                 )}
               </CardContent>
             </Card>
@@ -122,7 +147,7 @@ export function PatternsClient({
           >
             <Card>
               <CardHeader>
-                <CardTitle>Domain radar</CardTitle>
+                <CardTitle>Domain scores</CardTitle>
               </CardHeader>
               <CardContent>
                 <DomainRadarChart data={radarData} />
@@ -133,12 +158,11 @@ export function PatternsClient({
 
         <Card>
           <CardHeader>
-            <CardTitle>AI narrative summary</CardTitle>
+            <CardTitle>Decision portrait</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm leading-relaxed text-text-secondary">
             <p className="whitespace-pre-wrap text-text-primary">
-              {narrative ??
-                "Generate a monthly portrait after more autopsies."}
+              {narrative ?? "Generate your AI narrative portrait from accumulated autopsies."}
             </p>
             <Button
               variant="outline"
@@ -148,29 +172,80 @@ export function PatternsClient({
             >
               {loading ? "Generating…" : "Regenerate portrait"}
             </Button>
-            {error && <p className="text-xs text-red-300">{error}</p>}
+            {error && <p className="text-xs text-accent-danger">{error}</p>}
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Trigger map (illustrative)</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-3 sm:grid-cols-3">
-            {["Authority conflict", "Sleep debt", "Reputation threat"].map((t, i) => (
-              <div
-                key={t}
-                className="rounded-xl border border-border-subtle bg-bg-tertiary/40 p-4 text-sm"
-                style={{ opacity: 0.4 + i * 0.2 }}
-              >
-                <div className="text-xs text-text-tertiary">Situation</div>
-                <div className="mt-1 text-text-primary">{t}</div>
-                <div className="mt-3 text-xs text-text-tertiary">→ Response</div>
-                <div className="text-text-secondary">Impulsive exit</div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+        <div className="grid gap-6 lg:grid-cols-3">
+          <Card>
+            <CardHeader>
+              <CardTitle>Trigger map</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {triggerMap.length === 0 && (
+                <p className="text-sm text-text-secondary">
+                  Emotional triggers appear after more autopsies.
+                </p>
+              )}
+              {triggerMap.slice(0, 6).map((t) => (
+                <div
+                  key={`${t.trigger}-${t.pattern}`}
+                  className="rounded-lg border border-border-subtle bg-bg-tertiary/40 p-3 text-sm"
+                >
+                  <div className="font-medium text-text-primary">{t.trigger}</div>
+                  <div className="mt-1 text-xs text-text-secondary">{t.pattern}</div>
+                  <div className="mt-2 font-mono text-[10px] uppercase text-accent-primary">
+                    {t.count}× observed
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>High-risk emotional states</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              {highRiskStates.length === 0 && (
+                <p className="text-text-secondary">
+                  States linked to low outcomes (≤4/10) will surface here.
+                </p>
+              )}
+              {highRiskStates.map((s) => (
+                <div
+                  key={s.state}
+                  className="flex items-center justify-between rounded-lg border border-border-subtle px-3 py-2"
+                >
+                  <span className="text-text-primary">{s.state}</span>
+                  <span className="font-mono text-xs text-accent-danger">{s.count}×</span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Worst decision times</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              {worstTimes.length === 0 && (
+                <p className="text-text-secondary">
+                  Time-of-day patterns appear when you rate low outcomes.
+                </p>
+              )}
+              {worstTimes.map((w) => (
+                <div
+                  key={w.hour_bucket}
+                  className="flex items-center justify-between rounded-lg border border-border-subtle px-3 py-2"
+                >
+                  <span className="text-text-primary">{w.hour_bucket}</span>
+                  <span className="font-mono text-xs text-accent-neural">{w.count}×</span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

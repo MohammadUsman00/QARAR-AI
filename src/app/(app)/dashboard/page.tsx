@@ -1,5 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/layout/page-header";
+import { PatternAlertsPanel } from "@/components/dashboard/pattern-alerts";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import dynamic from "next/dynamic";
@@ -104,27 +106,25 @@ export default async function DashboardPage() {
   const trendRows =
     (cog?.decision_quality_trend as { month: string; score: number }[] | null) ??
     [];
-  const lineData =
-    trendRows.length > 0
-      ? trendRows
-      : Array.from({ length: 12 }).map((_, i) => ({
-          month: `${i + 1}m`,
-          score: Math.min(10, 4 + i * 0.35 + Math.sin(i) * 0.4),
-        }));
+  const lineData = trendRows;
   const qualityScore =
-    trendRows.length > 0 ? trendRows[trendRows.length - 1]!.score : 6.2;
+    trendRows.length > 0 ? trendRows[trendRows.length - 1]!.score : null;
   const prevScore =
     trendRows.length > 1 ? trendRows[trendRows.length - 2]!.score : qualityScore;
-  const trendUp = qualityScore >= prevScore;
+  const trendUp =
+    qualityScore != null && prevScore != null ? qualityScore >= prevScore : undefined;
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="font-heading text-3xl text-text-primary">Dashboard</h1>
-        <p className="mt-1 text-sm text-text-secondary">
-          Plan: <span className="text-accent-primary">{profile?.plan ?? "free"}</span>
-        </p>
-      </div>
+      <PageHeader
+        title="Dashboard"
+        description={`Plan: ${profile?.plan ?? "free"} — your decision intelligence at a glance.`}
+        action={
+          <Button asChild>
+            <Link href="/autopsy">New autopsy</Link>
+          </Button>
+        }
+      />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat
@@ -145,8 +145,8 @@ export default async function DashboardPage() {
         />
         <Stat
           label="Decision quality"
-          value={`${qualityScore.toFixed(1)} / 10`}
-          trend={trendUp ? "up" : "down"}
+          value={qualityScore != null ? `${qualityScore.toFixed(1)} / 10` : "—"}
+          trend={trendUp === undefined ? undefined : trendUp ? "up" : "down"}
         />
       </div>
 
@@ -233,30 +233,32 @@ export default async function DashboardPage() {
         <CardHeader>
           <CardTitle>Pattern alerts</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3 text-sm text-text-secondary">
-          {(alerts ?? []).length === 0 && (
-            <p>No alerts yet. Elite unlocks predictive alerts.</p>
-          )}
-          {(alerts ?? []).map((al) => (
-            <div
-              key={al.id}
-              className="rounded-lg border border-border-subtle bg-bg-tertiary/40 px-3 py-2"
-            >
-              <div className="text-text-primary">{al.message}</div>
-              <div className="text-xs text-text-tertiary">
-                {new Date(al.created_at ?? "").toLocaleString()}
-              </div>
-            </div>
-          ))}
+        <CardContent>
+          <PatternAlertsPanel
+            plan={profile?.plan ?? "free"}
+            initialAlerts={(alerts ?? []).map((al) => ({
+              id: al.id as string,
+              message: (al.message as string) ?? "",
+              created_at: (al.created_at as string) ?? "",
+              read: Boolean(al.read),
+              decision_id: (al.decision_id as string) ?? null,
+            }))}
+          />
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>Monthly decision quality (illustrative)</CardTitle>
+          <CardTitle>Monthly decision quality</CardTitle>
         </CardHeader>
         <CardContent>
-          <QualityLineChart data={lineData} />
+          {lineData.length > 0 ? (
+            <QualityLineChart data={lineData} />
+          ) : (
+            <p className="text-sm text-text-secondary">
+              Rate outcomes on autopsies to build your quality trend over time.
+            </p>
+          )}
         </CardContent>
       </Card>
     </div>
