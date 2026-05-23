@@ -33,6 +33,15 @@ export const autopsyAnalyzeRequestSchema = z.object({
 
 export type AutopsyAnalyzeRequest = z.infer<typeof autopsyAnalyzeRequestSchema>;
 
+export const autopsyFeedbackSchema = z.object({
+  autopsy_id: z.string().uuid(),
+  helpful: z.boolean(),
+  tags: z.array(z.string().trim().max(40)).max(8).optional().default([]),
+  comment: z.string().trim().max(500).optional().nullable(),
+});
+
+export type AutopsyFeedbackRequest = z.infer<typeof autopsyFeedbackSchema>;
+
 export function formatZodError(error: z.ZodError) {
   return error.issues.map((issue) => ({
     path: issue.path.join("."),

@@ -1,6 +1,6 @@
 # Qarar AI
 
-**Decision intelligence for forensic self-analysis** — structured AI autopsies of past decisions, longitudinal cognitive profiling, and plan-based access to deeper pattern intelligence.
+**Decision intelligence for forensic self-analysis** — structured AI autopsies of regretted decisions, longitudinal cognitive profiling, and plan-gated pattern intelligence.
 
 ![Next.js](https://img.shields.io/badge/Next.js-14-black?logo=next.js)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?logo=typescript)
@@ -18,26 +18,28 @@
 1. [Overview](#overview)
 2. [Product capabilities](#product-capabilities)
 3. [Plans and entitlements](#plans-and-entitlements)
-4. [Architecture](#architecture)
-5. [Tech stack](#tech-stack)
-6. [Getting started](#getting-started)
-7. [Environment variables](#environment-variables)
-8. [Database](#database)
-9. [API surface](#api-surface)
-10. [Testing and quality](#testing-and-quality)
-11. [AI safety and reliability](#ai-safety-and-reliability)
-12. [Privacy and secrets handling](#privacy-and-secrets-handling)
-13. [Deployment](#deployment)
-14. [UI reference captures](#ui-reference-captures)
+4. [AI pipeline](#ai-pipeline)
+5. [Architecture](#architecture)
+6. [Tech stack](#tech-stack)
+7. [Getting started](#getting-started)
+8. [Environment variables](#environment-variables)
+9. [Database](#database)
+10. [API surface](#api-surface)
+11. [Testing and quality](#testing-and-quality)
+12. [AI safety and reliability](#ai-safety-and-reliability)
+13. [Privacy and secrets](#privacy-and-secrets)
+14. [Deployment](#deployment)
+15. [Repository layout](#repository-layout)
 
 ---
 
 ## Overview
 
-Qarar helps users **analyze regretted decisions** with a consistent forensic framework: root causes, cognitive biases, triggers, and actionable reframes. Over time, the product aggregates outcomes into a **cognitive profile** and, on paid tiers, unlocks **pattern views**, **PDF export**, and (Elite) **pattern alerts** when recurring biases are detected.
+Qarar helps users analyze **regretted decisions** with a consistent forensic framework: root causes, cognitive biases, emotional triggers, calibrated probabilities, and actionable reframes. Each autopsy feeds a **cognitive profile** that improves over time through retrieval, aggregation, and user feedback.
 
-The application is built as a **Next.js 14** (App Router) monolith with **Supabase** for auth and data, **Google Gemini** for structured analysis, and **Stripe** for subscriptions and the customer billing portal.
-Recent hardening also adds request validation, endpoint rate limiting, prompt-isolation controls, output safety checks, and inference telemetry for better production reliability.
+The product is a **Next.js 14** (App Router) application backed by **Supabase** (auth + Postgres + RLS), **Google Gemini** (structured inference + embeddings), and **Stripe** (subscriptions). Production controls include Zod validation, durable rate limits, prompt isolation, crisis screening, output safety guards, and structured inference telemetry.
+
+**Design system:** Cormorant Garamond (display), Syne (headings), DM Sans (body), JetBrains Mono (data labels) on a dark gold/neural palette — applied consistently across marketing, auth, and app surfaces via `MarketingShell`, `AuthShell`, and `PageHeader`.
 
 ---
 
@@ -45,44 +47,158 @@ Recent hardening also adds request validation, endpoint rate limiting, prompt-is
 
 | Area | Description |
 |------|-------------|
-| **Decision autopsy** | Guided flow producing structured analysis (biases, triggers, lessons) stored per user. |
-| **Dashboard** | Summary metrics; uses stored domain scores and monthly quality trend when available. |
-| **History** | List of past autopsies; **Free** tier is limited to a rolling **30-day** window in the UI. |
-| **Patterns** | Deeper visualization of domains and biases; **Pro+** only. |
-| **Cognitive profile** | Aggregated from decisions; enriched with domain scores and trend data from analysis pipeline. |
-| **PDF export** | Client-side export via `jspdf`; **Pro+** only. |
-| **Upgrade UX** | Modal and upgrade page when limits are hit; Stripe Checkout with plan metadata. |
-| **Billing** | Stripe Checkout, **Billing Portal** for subscribers, webhooks for plan sync. |
-| **Onboarding** | Captures calibration answers; persisted when profile columns exist (see [Database](#database)). |
-| **Profile** | Notification preferences, **danger zone** (clear history, delete account) via authenticated APIs. |
-| **Operations** | `/api/health` (dependency checks), `/api/ready` (readiness for load balancers). |
+| **Decision autopsy** | Guided narrative input → full pipeline → structured JSON report + markdown autopsy |
+| **Onboarding** | Calibration (regrets, weakness, motivation) wired into first autopsy context |
+| **Dashboard** | Stats, recent autopsies, bias/domain charts, pattern alerts (mark read), quality trend |
+| **History** | Searchable, filterable decision list; Free tier limited to 30-day window |
+| **Patterns** | Pro+ — bias charts, domain radar, trigger map, high-risk states, worst decision times, AI portrait |
+| **Cognitive profile** | Aggregated biases, domains, trends, confidence (feedback-aware), history summary |
+| **Feedback loop** | Thumbs up/down per autopsy; influences `profile_confidence` |
+| **PDF export** | Client-side via `jspdf`; Pro+ |
+| **Billing** | Stripe Checkout, Billing Portal, webhooks → `user_profiles.plan` |
+| **Profile** | Account, notifications, JSON export, delete history/account |
+| **Operations** | `/api/health`, `/api/ready` for probes |
 
 ---
 
 ## Plans and entitlements
 
-Entitlements are centralized in `src/lib/plan-limits.ts` and enforced in UI and server routes.
+Enforced in `src/lib/plan-limits.ts` (UI + API).
 
 | Feature | Free | Pro | Elite |
 |--------|:----:|:---:|:-----:|
-| Lifetime autopsies (cap) | 3 | Unlimited | Unlimited |
-| History window | Last 30 days | Full | Full |
-| Patterns | No | Yes | Yes |
-| PDF export | No | Yes | Yes |
-| Cognitive profile depth | Basic | Full | Full |
-| Pattern alerts (recurring bias signals) | No | No | Yes |
+| Lifetime autopsies | 3 | Unlimited | Unlimited |
+| History window | 30 days | Full | Full |
+| Patterns & PDF | — | Yes | Yes |
+| Pattern alerts | — | — | Yes |
+| Cognitive profile | Basic | Full | Full |
 
-Stripe webhook and checkout flows map purchases to `user_profiles.plan` (`free` | `pro` | `elite`).
+---
+
+## AI pipeline
+
+**Version:** `pipeline-v1-2026-05-23` · **Orchestrator:** `src/lib/pipeline/orchestrator.ts`
+
+### End-to-end flow
+
+```mermaid
+flowchart TB
+  subgraph ingest [1. Ingestion]
+    UI[Autopsy UI]
+    Zod[Zod validation]
+    Crisis[Crisis regex gate]
+    RL[Rate limit + plan cap]
+  end
+
+  subgraph context [2. Context assembly]
+    Load[Load past decisions + embeddings]
+    Retrieve[Hybrid retrieval]
+    Onboard[Onboarding snapshot]
+    Summary[Rolling history summary]
+  end
+
+  subgraph infer [3. Inference]
+    Gemini[Gemini autopsy-v3-pipeline]
+    Repair[JSON repair on parse failure]
+    SafetyOut[Output safety scan]
+  end
+
+  subgraph persist [4. Persistence]
+    Decision[(decisions)]
+    Autopsy[(autopsies + metadata)]
+    Embed[(decision_embeddings)]
+  end
+
+  subgraph aggregate [5. Profile enrichment]
+    Bias[Canonical bias taxonomy]
+    Trigger[trigger_map]
+    Risk[high_risk_states]
+    Times[worst_decision_times]
+    Cog[(cognitive_profiles)]
+    Elite[Elite pattern_alerts]
+  end
+
+  subgraph secondary [6. Secondary inference - Pro+]
+    Portrait[Decision Portrait narrative]
+  end
+
+  subgraph feedback [7. Feedback loop]
+    FB[POST /api/autopsy/feedback]
+    Conf[profile_confidence calibration]
+  end
+
+  UI --> Zod --> Crisis --> RL
+  RL --> Load --> Retrieve
+  Retrieve --> Onboard
+  Retrieve --> Summary
+  Onboard --> Gemini
+  Summary --> Gemini
+  Retrieve --> Gemini
+  Gemini --> Repair --> SafetyOut
+  SafetyOut --> Decision
+  SafetyOut --> Autopsy
+  SafetyOut --> Embed
+  Autopsy --> Bias --> Trigger --> Risk --> Times --> Cog
+  Cog --> Elite
+  Cog --> Portrait
+  Autopsy --> FB --> Conf --> Cog
+```
+
+### Stage reference
+
+| Stage | Module(s) | Behavior |
+|-------|-----------|----------|
+| **Validation** | `api-validation.ts`, `analyze/route.ts` | Zod on input; 10 autopsies/hour/user; plan lifetime caps |
+| **Crisis gate** | `llm-safety.ts` | Blocks self-harm/crisis narratives before any LLM call (422) |
+| **Hybrid retrieval** | `context.ts`, `embeddings.ts`, `text-similarity.ts` | **embedding** (Gemini `text-embedding-004`) → **text** (TF-IDF cosine) → **recency** fallback; top-k relevant past decisions |
+| **Context injection** | `summary.ts`, `gemini.ts` | Rolling history summary, onboarding answers, cognitive profile snapshot, untrusted-data delimiters |
+| **Primary inference** | `gemini.ts` | `autopsy-v3-pipeline-2026-05-23`; JSON mode; temp 0.65; 45s timeout; 1 retry |
+| **Parse repair** | `gemini.ts` | One-shot JSON repair if schema validation fails |
+| **Output safety** | `llm-safety.ts` | Regex guard on generated advice before save |
+| **Persistence** | `analyze/route.ts` | `decisions`, `autopsies` (prompt/schema/request_id/latency/pipeline_version/retrieval_method), `decision_embeddings` |
+| **Profile enrichment** | `profile-enrichment.ts`, `cognitive-aggregate.ts` | `top_biases`, `trigger_map`, `high_risk_states`, `worst_decision_times`, domain scores, monthly quality trend, `profile_confidence` |
+| **Feedback** | `feedback/route.ts`, orchestrator | Helpful rate adjusts confidence on next aggregate |
+| **Patterns** | `gemini-patterns.ts` | Decision Portrait with system prompt + output safety |
+| **Telemetry** | `inference-telemetry.ts` | Structured JSON logs per request |
+| **Evaluation** | `eval/rubric.ts`, `eval/golden-cases.ts` | Rubric scorer + 5 golden cases in Vitest |
+
+### Retrieval methods
+
+Stored on each autopsy as `retrieval_method`:
+
+| Method | When used |
+|--------|-----------|
+| `embedding` | Query + past decision embeddings available (cosine similarity) |
+| `text` | No embeddings; TF-IDF similarity above threshold |
+| `recency` | Cold start or low similarity — most recent decisions |
+
+### API response (autopsy)
+
+Successful `POST /api/autopsy/analyze` returns structured `result`, `decision_id`, `autopsy_id`, `safety_disclaimer`, and:
+
+```json
+{
+  "pipeline": {
+    "version": "pipeline-v1-2026-05-23",
+    "retrieval_method": "embedding",
+    "relevant_decisions_count": 3
+  }
+}
+```
 
 ---
 
 ## Architecture
 
-- **Frontend**: React 18, App Router, Tailwind, Radix-based UI primitives, Framer Motion, Recharts.
-- **Auth**: Supabase Auth; middleware protects app routes; callback at `/auth/callback`.
-- **Data**: PostgreSQL via Supabase with Row Level Security (RLS) on user-scoped tables.
-- **AI**: Gemini generates JSON-structured autopsy output; prompts and parsing live under `src/lib` and API routes.
-- **Payments**: Stripe Checkout (with `client_reference_id` and metadata), Billing Portal session, webhooks for subscription lifecycle and failed payments (optional Resend email).
+| Layer | Implementation |
+|-------|----------------|
+| **Frontend** | React 18, App Router, Tailwind, Radix UI, Framer Motion, Recharts |
+| **Layouts** | `MarketingShell` (public), `AuthShell` (login/signup), `AppShell` (authenticated) |
+| **Auth** | Supabase Auth; middleware; `/auth/callback` |
+| **Data** | PostgreSQL + RLS; service role for webhooks and destructive ops |
+| **AI** | Gemini Flash (autopsy JSON) + text-embedding-004 (retrieval) |
+| **Payments** | Stripe Checkout, Portal, webhooks |
+| **CI** | GitHub Actions — lint, typecheck, Vitest, Playwright |
 
 ---
 
@@ -91,17 +207,15 @@ Stripe webhook and checkout flows map purchases to `user_profiles.plan` (`free` 
 | Layer | Choices |
 |-------|---------|
 | Framework | Next.js 14 (App Router), TypeScript |
-| Styling | Tailwind CSS, CVA, `tailwind-merge` |
-| UI | Radix UI, Lucide icons |
-| State | Zustand (where used) |
+| Styling | Tailwind CSS, CSS variables, CVA |
+| Fonts | Cormorant Garamond, Syne, DM Sans, JetBrains Mono |
 | Validation | Zod |
-| AI | `@google/generative-ai` (Gemini) |
-| Backend data | `@supabase/supabase-js`, `@supabase/ssr` |
-| Payments | `stripe` |
-| Email | `resend` (optional, e.g. payment failure notices) |
-| PDF | `jspdf` |
+| AI | `@google/generative-ai` |
+| Data | `@supabase/supabase-js`, `@supabase/ssr` |
+| Payments | Stripe |
+| Email | Resend (optional) |
+| PDF | jspdf |
 | Tests | Vitest, Testing Library, Playwright |
-| CI | GitHub Actions (`.github/workflows/ci.yml`) |
 
 ---
 
@@ -109,110 +223,102 @@ Stripe webhook and checkout flows map purchases to `user_profiles.plan` (`free` 
 
 ### Prerequisites
 
-- Node.js 18+ (LTS recommended)
-- npm
+- Node.js 18+
 - Supabase project (Auth + Postgres)
-- Google AI Studio API key for Gemini
-- Optional: Stripe account and Resend account for billing and mail
+- Google AI Studio API key (Gemini)
+- Optional: Stripe, Resend
 
-### Install
+### Install and run
 
 ```bash
 git clone <repository-url>
 cd Qarar-AI
 npm install
-```
-
-### Configure environment
-
-```bash
 cp .env.example .env.local
-```
-
-Edit `.env.local` with your keys (see [Environment variables](#environment-variables)).
-
-### Run locally
-
-```bash
+# Edit .env.local — see Environment variables
 npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
 
-### Production build (local verification)
+### Verify production build
 
 ```bash
 npm run build
 npm start
 ```
 
+### Optional UI captures
+
+Generate reference screenshots locally (not required for the app to run):
+
+```bash
+npm run capture:ui
+```
+
+Output: `public/screenshots/` (commit only if you want assets in the repo).
+
 ---
 
 ## Environment variables
 
-Copy from `.env.example` and set values in `.env.local` (never commit secrets).
+Set in `.env.local` (never commit secrets). See `.env.example`.
 
-### Required for core product behavior
-
-| Variable | Purpose |
-|----------|---------|
-| `NEXT_PUBLIC_APP_URL` | Canonical app URL (e.g. `http://localhost:3000`) |
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous key (client) |
-| `GEMINI_API_KEY` | Google Gemini API access |
-
-### Recommended for server features
-
-| Variable | Purpose |
-|----------|---------|
-| `SUPABASE_SERVICE_ROLE_KEY` | Server-only key for admin operations (webhooks, deletes, elevated reads) — **keep secret** |
-| `GEMINI_MODEL` | Optional model override (default is a fast JSON-capable model, e.g. `gemini-2.0-flash`) |
-
-### Stripe (billing)
-
-| Variable | Purpose |
-|----------|---------|
-| `STRIPE_SECRET_KEY` | Stripe secret API key |
-| `STRIPE_WEBHOOK_SECRET` | Verifies `/api/stripe/webhook` signatures |
-| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Publishable key for Checkout |
-| `NEXT_PUBLIC_STRIPE_PRICE_PRO_MONTHLY` | Price ID for Pro |
-| `NEXT_PUBLIC_STRIPE_PRICE_ELITE_MONTHLY` | Price ID for Elite |
-
-### Email (optional)
-
-| Variable | Purpose |
-|----------|---------|
-| `RESEND_API_KEY` | Resend API key |
-| `RESEND_FROM_EMAIL` | Verified sender address in Resend (e.g. `notifications@yourdomain.com`) |
+| Variable | Required | Purpose |
+|----------|:--------:|---------|
+| `NEXT_PUBLIC_APP_URL` | Yes | Canonical URL |
+| `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Client anon key |
+| `GEMINI_API_KEY` | Yes | Gemini inference + embeddings |
+| `SUPABASE_SERVICE_ROLE_KEY` | Recommended | Webhooks, account/history delete |
+| `GEMINI_MODEL` | Optional | Default `gemini-2.0-flash` |
+| `STRIPE_*` | Billing | Secret key, webhook secret, publishable key, price IDs |
+| `RESEND_*` | Optional | Payment failure emails |
 
 ---
 
 ## Database
 
-1. In the Supabase SQL editor, run **`supabase/schema.sql`** to create tables, policies, and core objects.
-2. Run **`supabase/migrations/002_profile_extensions.sql`** to add profile fields used by onboarding and notification settings (`onboarding_answers`, `notification_settings`).
-3. Run **`supabase/migrations/003_autopsy_inference_metadata.sql`** to add AI traceability columns (`prompt_version`, `schema_version`, `request_id`, `latency_ms`) for reliability audits.
-4. Run **`supabase/migrations/004_durable_ai_rate_limits.sql`** to enable durable AI route limits across serverless instances.
+Apply in order in the Supabase SQL editor:
 
-Enable **Email** auth (and optional OAuth) in Supabase. Set the redirect URL to match your app, for example:
+| Order | File | Purpose |
+|-------|------|---------|
+| 1 | `supabase/schema.sql` | Core tables, RLS, rate-limit RPC |
+| 2 | `supabase/migrations/002_profile_extensions.sql` | Onboarding + notification settings |
+| 3 | `supabase/migrations/003_autopsy_inference_metadata.sql` | Prompt/schema version, request_id, latency |
+| 4 | `supabase/migrations/004_durable_ai_rate_limits.sql` | Cross-instance AI rate limits |
+| 5 | `supabase/migrations/005_pipeline_extensions.sql` | Feedback, embeddings, profile enrichment columns |
 
-`http://localhost:3000/auth/callback`
+**Auth redirect URL:** `http://localhost:3000/auth/callback` (adjust for production).
+
+### Key tables
+
+| Table | Role |
+|-------|------|
+| `decisions` | User narratives, domain, outcome ratings |
+| `autopsies` | Structured AI output + inference metadata |
+| `decision_embeddings` | JSON embedding vectors for retrieval |
+| `cognitive_profiles` | Aggregates, trigger map, trends, portrait |
+| `autopsy_feedback` | Helpful/not-helpful per autopsy |
+| `pattern_alerts` | Elite recurring-bias notifications |
+| `ai_rate_limits` | Durable rate-limit counters |
 
 ---
 
 ## API surface
 
-| Method | Path | Role |
-|--------|------|------|
-| `POST` | `/api/autopsy/analyze` | Run Gemini autopsy; updates profile aggregates and Elite pattern alerts when applicable |
-| `POST` | `/api/patterns/generate` | Refresh pattern narrative |
-| `GET` | `/api/user/me` | Current user plan, limits, and related flags |
-| `POST` | `/api/user/delete-history` | Delete user’s decision history (authenticated, service role) |
-| `POST` | `/api/user/delete-account` | Delete auth user (authenticated, service role) |
-| `POST` | `/api/stripe/checkout` | Create Stripe Checkout session |
-| `POST` | `/api/stripe/portal` | Create Stripe Billing Portal session |
-| `POST` | `/api/stripe/webhook` | Stripe webhooks (subscriptions, checkout, invoice events) |
-| `GET` | `/api/health` | Liveness/dependency status |
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/autopsy/analyze` | Full autopsy pipeline |
+| `POST` | `/api/autopsy/feedback` | Record autopsy feedback |
+| `POST` | `/api/patterns/generate` | Regenerate Decision Portrait (Pro+) |
+| `GET` | `/api/user/me` | Plan, limits, flags |
+| `POST` | `/api/user/delete-history` | Wipe decision history |
+| `POST` | `/api/user/delete-account` | Delete account |
+| `POST` | `/api/stripe/checkout` | Checkout session |
+| `POST` | `/api/stripe/portal` | Billing portal |
+| `POST` | `/api/stripe/webhook` | Subscription sync |
+| `GET` | `/api/health` | Dependency health |
 | `GET` | `/api/ready` | Readiness probe |
 
 ---
@@ -221,78 +327,71 @@ Enable **Email** auth (and optional OAuth) in Supabase. Set the redirect URL to 
 
 | Command | Description |
 |---------|-------------|
-| `npm run lint` | ESLint (Next.js config) |
-| `npm run typecheck` | TypeScript compiler check (`tsc --noEmit`) |
-| `npm run test` | Vitest with coverage |
-| `npm run test:watch` | Vitest watch mode |
-| `npm run test:e2e` | Playwright end-to-end tests |
-| `npm run test:e2e:ui` | Playwright UI mode |
-| `npm run test:all` | Lint, unit tests, and E2E in sequence |
+| `npm run lint` | ESLint |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm run test` | Vitest + coverage (pipeline, rubric, hardening) |
+| `npm run test:e2e` | Playwright smoke tests |
+| `npm run test:all` | Lint + unit + E2E |
+
+**Eval assets:** `src/lib/eval/golden-cases.ts`, `src/lib/eval/rubric.ts`, `tests/pipeline.test.ts`.
 
 ---
 
 ## AI safety and reliability
 
-- **Input validation**: `POST /api/autopsy/analyze` validates request payloads with Zod (`src/lib/api-validation.ts`).
-- **Rate limiting**: AI routes enforce fixed-window request limits per user/IP key with Supabase-backed durable counters and local test/dev fallback (`src/lib/rate-limit.ts`).
-- **Prompt hardening**: untrusted user/context data is explicitly delimited in prompts to reduce instruction hijack risk (`src/lib/gemini.ts`, `src/app/api/patterns/generate/route.ts`).
-- **Timeouts and error taxonomy**: inference paths distinguish timeout/provider/parse/validation errors and return structured failure responses.
-- **Safety checks**: user input is screened for crisis/self-harm patterns before inference, and generated autopsy advice passes a high-risk content guard before persistence (`src/lib/llm-safety.ts`).
-- **Telemetry**: structured inference logs include request ID, model version, prompt/schema version, latency, token usage (`src/lib/inference-telemetry.ts`).
-- **Security headers**: baseline CSP, frame, referrer, MIME, and permissions headers are configured in `next.config.mjs`.
+- **Input validation** — Zod schemas for autopsy and feedback payloads
+- **Rate limiting** — Supabase-backed fixed windows (`autopsy-analyze`: 10/hr, `patterns-generate`: 6/hr)
+- **Prompt isolation** — Untrusted delimiters; system instructions immutable
+- **Crisis screening** — Pre-inference block with safe messaging (422)
+- **Output guards** — High-risk advice patterns rejected before persistence
+- **Error taxonomy** — `timeout`, `parse_error`, `provider_error`, `validation_error`, `rate_limited`
+- **Traceability** — `prompt_version`, `schema_version`, `request_id`, `latency_ms`, `pipeline_version`, `retrieval_method` on autopsies
+- **Security headers** — CSP and related headers in `next.config.mjs`
 
 ---
 
-## Privacy and secrets handling
+## Privacy and secrets
 
-- Never commit `.env`, `.env.local`, or any credentials file.
-- Keep `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`, and `STRIPE_SECRET_KEY` server-only.
-- Do not log raw secrets, tokens, or webhook signatures.
-- Review `.gitignore` before adding new tooling so generated secret-bearing files stay untracked.
-- Rotate keys immediately if a secret is accidentally exposed.
+- Do not commit `.env`, `.env.local`, or credential files
+- Keep `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`, and `STRIPE_SECRET_KEY` server-only
+- Users can export JSON or delete history/account from Settings
+- Crisis content is not sent to the model
+- Replace placeholder copy on `/about` with counsel-reviewed policies before public launch
 
 ---
 
 ## Deployment
 
-- **Hosting**: Compatible with Vercel or any Node host that supports Next.js 14.
-- **Environment**: Set all variables from [Environment variables](#environment-variables) in the host dashboard.
-- **Stripe**: Create a webhook endpoint pointing to `https://<your-domain>/api/stripe/webhook` and subscribe at minimum to events you handle (e.g. `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_failed`).
-- **Probes**: Use `/api/ready` for readiness and `/api/health` for deeper dependency checks.
-- **Migrations**: apply `schema.sql` and all migrations in order (`002`, `003`, `004`) before promoting.
+1. Apply all database migrations (`schema.sql` + `002`–`005`)
+2. Set environment variables on the host (Vercel or Node 18+)
+3. Configure Stripe webhook → `https://<domain>/api/stripe/webhook`
+4. Set Supabase redirect URLs for production
+5. Use `/api/ready` (readiness) and `/api/health` (dependencies)
 
 ---
 
-## UI reference captures
+## Repository layout
 
-Screenshots are generated for documentation consistency:
-
-```bash
-npm run capture:ui
+```
+src/
+├── app/                    # App Router pages + API routes
+├── components/
+│   ├── layout/             # MarketingShell, AuthShell, AppShell, PageHeader
+│   ├── patterns/           # Patterns client (real pipeline data)
+│   ├── dashboard/          # Pattern alerts panel
+│   └── ui/                 # Button, Card, Input, Textarea, Select, …
+├── lib/
+│   ├── pipeline/           # Orchestrator, retrieval, enrichment
+│   ├── eval/               # Golden cases + rubric scorer
+│   ├── gemini.ts           # Primary autopsy inference
+│   ├── gemini-patterns.ts  # Decision Portrait
+│   └── …                   # Stripe, safety, telemetry, plan limits
+supabase/
+├── schema.sql
+└── migrations/002–005
+tests/                        # Vitest + Playwright
 ```
 
-Output directory: `public/screenshots/`. Commit the generated PNGs if you want them to render on GitHub; otherwise run the script locally before reviewing docs.
-
-| Screen | Preview |
-|--------|---------|
-| Landing | ![Landing](public/screenshots/landing.png) |
-| Login | ![Login](public/screenshots/login.png) |
-| Signup | ![Signup](public/screenshots/signup.png) |
-| Onboarding | ![Onboarding](public/screenshots/onboarding.png) |
-
 ---
 
-## Repository layout (high level)
-
-| Path | Contents |
-|------|----------|
-| `src/app/` | App Router pages and API routes |
-| `src/components/` | UI components and feature clients |
-| `src/lib/` | Domain logic, Stripe, Gemini, PDF, email helpers |
-| `supabase/` | Schema and migrations |
-| `tests/` | Vitest specs |
-| `tests/e2e/` | Playwright specs |
-
----
-
-*This README reflects the application as of the current main branch. For schema changes, always apply migrations in order after `schema.sql`.*
+*README reflects the current main branch. Always run migrations in order after `schema.sql`.*

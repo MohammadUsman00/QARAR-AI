@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
+import { PageHeader } from "@/components/layout/page-header";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { getPlanLimits } from "@/lib/plan-limits";
@@ -22,6 +24,7 @@ export default function HistoryPage() {
   const [q, setQ] = useState("");
   const [sort, setSort] = useState<"new" | "old">("new");
   const [userPlan, setUserPlan] = useState<string>("free");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const supabase = createClient();
@@ -39,6 +42,7 @@ export default function HistoryPage() {
         .eq("user_id", user.id)
         .order("created_at", { ascending: sort === "old" });
       setRows((data as Row[]) ?? []);
+      setLoading(false);
     });
   }, [sort]);
 
@@ -60,18 +64,14 @@ export default function HistoryPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-heading text-3xl text-text-primary">History</h1>
-        <p className="mt-1 text-sm text-text-secondary">
-          Every autopsy you&apos;ve run, searchable and filterable.
-        </p>
-        {userPlan === "free" && (
-          <p className="mt-2 text-xs text-text-tertiary">
-            Free plan: showing the last {getPlanLimits("free").history_days} days. Upgrade for full
-            history.
-          </p>
-        )}
-      </div>
+      <PageHeader
+        title="History"
+        description={
+          userPlan === "free"
+            ? `Last ${getPlanLimits("free").history_days} days on Free. Upgrade for full history.`
+            : "Every autopsy you've run, searchable and filterable."
+        }
+      />
 
       <div className="sticky top-0 z-10 space-y-3 border-b border-border-subtle bg-bg-primary/90 py-3 backdrop-blur">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -92,14 +92,14 @@ export default function HistoryPage() {
             ))}
           </div>
           <div className="flex flex-wrap gap-2">
-            <select
+            <Select
               value={sort}
               onChange={(e) => setSort(e.target.value as "new" | "old")}
-              className="rounded-md border border-border-subtle bg-bg-tertiary px-3 py-2 text-sm text-text-primary"
+              className="w-auto min-w-[120px]"
             >
               <option value="new">Newest</option>
               <option value="old">Oldest</option>
-            </select>
+            </Select>
           </div>
         </div>
         <Input
@@ -110,7 +110,14 @@ export default function HistoryPage() {
       </div>
 
       <div className="space-y-3">
-        {filtered.length === 0 && (
+        {loading && (
+          <div className="space-y-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="h-24 animate-pulse rounded-xl bg-bg-tertiary/50" />
+            ))}
+          </div>
+        )}
+        {!loading && filtered.length === 0 && (
           <Card className="border-dashed border-border-active">
             <CardContent className="p-10 text-center text-sm text-text-secondary">
               Your first autopsy is waiting.{" "}
@@ -121,7 +128,8 @@ export default function HistoryPage() {
             </CardContent>
           </Card>
         )}
-        {filtered.map((r, i) => (
+        {!loading &&
+          filtered.map((r, i) => (
           <Card
             key={r.id}
             className="border-border-subtle"
@@ -146,7 +154,7 @@ export default function HistoryPage() {
               </Link>
             </CardContent>
           </Card>
-        ))}
+          ))}
       </div>
     </div>
   );

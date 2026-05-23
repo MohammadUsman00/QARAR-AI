@@ -10,6 +10,9 @@ import type { AutopsyResult } from "@/lib/gemini";
 import { downloadAutopsyPdf } from "@/lib/pdf-export";
 import { apiErrorMessage } from "@/lib/api-errors";
 import { UpgradeModal } from "@/components/upgrade-modal";
+import { PageHeader } from "@/components/layout/page-header";
+import { Textarea } from "@/components/ui/textarea";
+import { Select } from "@/components/ui/select";
 import { useAppUi } from "@/stores/use-app";
 
 const prompts = [
@@ -66,6 +69,10 @@ export function AutopsyClient() {
   const [loadingIdx, setLoadingIdx] = useState(0);
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [pdfAllowed, setPdfAllowed] = useState(false);
+  const [safetyNote, setSafetyNote] = useState<string | null>(null);
+  const [autopsyId, setAutopsyId] = useState<string | null>(null);
+  const [feedbackSent, setFeedbackSent] = useState(false);
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
 
   useEffect(() => {
     fetch("/api/user/me")
@@ -82,12 +89,15 @@ export function AutopsyClient() {
     const { data: autopsy } = await supabase
       .from("autopsies")
       .select(
-        "full_report, root_cause, cognitive_biases, emotional_triggers, life_patterns, nervous_system_state, wait_72hr_probability, alternate_outcome_probability, estimated_cost_context, immediate_actions, pattern_break_strategy",
+        "id, full_report, root_cause, cognitive_biases, emotional_triggers, life_patterns, nervous_system_state, wait_72hr_probability, alternate_outcome_probability, estimated_cost_context, immediate_actions, pattern_break_strategy",
       )
       .eq("decision_id", decisionId)
       .maybeSingle();
 
     if (!autopsy) return;
+
+    setAutopsyId(autopsy.id);
+    setFeedbackSent(false);
 
     const { data: dec } = await supabase
       .from("decisions")
@@ -172,9 +182,24 @@ export function AutopsyClient() {
       return;
     }
     setResult(json.result as AutopsyResult);
+    setAutopsyId((json.autopsy_id as string) ?? null);
+    setSafetyNote((json.safety_disclaimer as string) ?? null);
+    setFeedbackSent(false);
     setPhase("report");
     setTyped("");
     router.replace(`/autopsy?decision=${json.decision_id as string}`);
+  }
+
+  async function submitFeedback(helpful: boolean) {
+    if (!autopsyId || feedbackSent) return;
+    setFeedbackLoading(true);
+    const res = await fetch("/api/autopsy/feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ autopsy_id: autopsyId, helpful }),
+    });
+    setFeedbackLoading(false);
+    if (res.ok) setFeedbackSent(true);
   }
 
   const charCount = useMemo(() => raw.length, [raw]);
@@ -194,14 +219,10 @@ export function AutopsyClient() {
   return (
     <div className="mx-auto max-w-3xl pb-24">
       <UpgradeModal open={showUpgrade} onOpenChange={setShowUpgrade} />
-      <header className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="font-heading text-2xl text-text-primary md:text-3xl">
-            New Decision Autopsy
-          </h1>
-          <p className="font-display text-sm italic text-accent-primary">قرار</p>
-        </div>
-      </header>
+      <PageHeader
+        title="Decision Autopsy"
+        description="Describe a regretted decision. Qarar runs a forensic analysis — not therapy."
+      />
 
       <AnimatePresence mode="wait">
         {phase === "input" && (
@@ -228,12 +249,12 @@ export function AutopsyClient() {
             </div>
 
             <div className="relative">
-              <textarea
+              <Textarea
                 value={raw}
                 onChange={(e) => setRaw(e.target.value)}
                 rows={12}
-                placeholder='I quit my job after one bad meeting with my manager. I sent the resignation the same evening...'
-                className="w-full resize-none border-0 border-b border-border-subtle bg-transparent px-0 py-3 font-sans text-lg text-text-primary caret-accent-primary placeholder:text-text-tertiary focus-visible:outline-none focus-visible:ring-0"
+                placeholder="I quit my job after one bad meeting with my manager. I sent the resignation the same evening..."
+                className="resize-none border-0 border-b border-border-subtle bg-transparent px-0 text-lg focus-visible:ring-0"
               />
               <div className="text-right text-xs text-text-tertiary">{charCount} chars</div>
             </div>
@@ -263,17 +284,17 @@ export function AutopsyClient() {
                 </div>
                 <div>
                   <label className="text-xs text-text-secondary">Domain</label>
-                  <select
+                  <Select
                     value={domain}
                     onChange={(e) => setDomain(e.target.value)}
-                    className="mt-1 w-full rounded-md border border-border-subtle bg-bg-tertiary px-3 py-2 text-sm text-text-primary"
+                    className="mt-1"
                   >
                     {domains.map((d) => (
                       <option key={d} value={d}>
                         {d}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
                 <div>
                   <label className="text-xs text-text-secondary">Emotional state</label>
@@ -437,17 +458,41 @@ export function AutopsyClient() {
                   </ul>
                 </section>
 
-                <section>
-                  <h3 className="font-mono text-xs uppercase tracking-widest text-accent-neural">
-                    If you had waited 72 hours
-                  </h3>
-                  <div className="mt-3 font-heading text-3xl text-accent-primary">
-                    {Math.round(result.wait_72hr_probability * 100)}%
+                <section className="grid gap-6 sm:grid-cols-2">
+                  <div>
+                    <h3 className="font-mono text-xs uppercase tracking-widest text-accent-neural">
+                      If you had waited 72 hours
+                    </h3>
+                    <div className="mt-3 font-heading text-3xl text-accent-primary">
+                      {Math.round(result.wait_72hr_probability * 100)}%
+                    </div>
+                    <p className="mt-2 text-sm text-text-secondary">
+                      Estimated chance you would not have repeated the same impulse.
+                    </p>
                   </div>
-                  <p className="mt-2 text-sm text-text-secondary">
-                    Estimated chance you would not have repeated the same impulse.
-                  </p>
+                  <div>
+                    <h3 className="font-mono text-xs uppercase tracking-widest text-accent-neural">
+                      Alternate outcome likelihood
+                    </h3>
+                    <div className="mt-3 font-heading text-3xl text-accent-neural">
+                      {Math.round(result.alternate_outcome_probability * 100)}%
+                    </div>
+                    <p className="mt-2 text-sm text-text-secondary">
+                      Model estimate — not a guarantee. Calibrate with your own outcome ratings.
+                    </p>
+                  </div>
                 </section>
+
+                {result.pattern_break_strategy && (
+                  <section>
+                    <h3 className="font-mono text-xs uppercase tracking-widest text-accent-neural">
+                      Pattern break strategy
+                    </h3>
+                    <p className="mt-2 text-sm leading-relaxed text-text-primary">
+                      {result.pattern_break_strategy}
+                    </p>
+                  </section>
+                )}
 
                 <section>
                   <h3 className="font-mono text-xs uppercase tracking-widest text-accent-neural">
@@ -481,6 +526,46 @@ export function AutopsyClient() {
                 </section>
               </div>
             </div>
+
+            {safetyNote && (
+              <p className="rounded-lg border border-border-subtle bg-bg-tertiary/30 px-4 py-3 text-xs text-text-tertiary">
+                {safetyNote}
+              </p>
+            )}
+
+            {autopsyId && (
+              <section className="rounded-xl border border-border-subtle bg-bg-secondary/40 p-4">
+                <h3 className="font-mono text-xs uppercase tracking-widest text-accent-neural">
+                  Was this autopsy helpful?
+                </h3>
+                <p className="mt-1 text-xs text-text-tertiary">
+                  Your feedback improves future analyses.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={feedbackLoading || feedbackSent}
+                    onClick={() => submitFeedback(true)}
+                  >
+                    Yes, helpful
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={feedbackLoading || feedbackSent}
+                    onClick={() => submitFeedback(false)}
+                  >
+                    Not really
+                  </Button>
+                  {feedbackSent && (
+                    <span className="self-center text-xs text-accent-primary">
+                      Thanks — recorded.
+                    </span>
+                  )}
+                </div>
+              </section>
+            )}
 
             <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
               <Button variant="outline" onClick={() => window.print()}>

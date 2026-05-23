@@ -52,6 +52,15 @@ export function detectCrisisInput(input: string): CrisisDetection {
   };
 }
 
+export function assertSafeNarrativeOutput(text: string) {
+  const unsafePattern = HIGH_RISK_ADVICE_PATTERNS.find((pattern) =>
+    pattern.test(text),
+  );
+  if (unsafePattern) {
+    throw new Error(`Unsafe narrative pattern detected: ${unsafePattern.source}`);
+  }
+}
+
 export function safetyDisclaimer() {
   return "Qarar provides decision-analysis support, not medical, legal, financial, or mental-health advice. For urgent safety, health, legal, or financial decisions, consult a qualified professional.";
 }

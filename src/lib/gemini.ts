@@ -1,7 +1,8 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import type { PipelineContext } from "@/lib/pipeline/types";
 import { z } from "zod";
 
-export const AUTOPSY_PROMPT_VERSION = "autopsy-v2-2026-04-26";
+export const AUTOPSY_PROMPT_VERSION = "autopsy-v3-pipeline-2026-05-23";
 export const AUTOPSY_SCHEMA_VERSION = "autopsy-schema-v1";
 const GEMINI_TIMEOUT_MS = 45_000;
 const GEMINI_MAX_RETRIES = 1;
@@ -101,6 +102,24 @@ function extractJson(text: string): string {
   return trimmed;
 }
 
+function parseAndValidateAutopsyJson(text: string): AutopsyResult {
+  const parsed = JSON.parse(extractJson(text));
+  return AutopsySchema.parse(parsed);
+}
+
+async function repairAutopsyJson(
+  model: ReturnType<GoogleGenerativeAI["getGenerativeModel"]>,
+  brokenText: string,
+): Promise<AutopsyResult> {
+  const repairPrompt = `Fix the following invalid JSON so it matches the autopsy schema exactly. Return ONLY valid JSON, no markdown fences.
+
+Broken output:
+${brokenText.slice(0, 12000)}`;
+
+  const repaired = await model.generateContent(repairPrompt);
+  return parseAndValidateAutopsyJson(repaired.response.text());
+}
+
 function truncateForPrompt(value: string, maxLength: number): string {
   const normalized = value.replace(/\u0000/g, "").trim();
   return normalized.length > maxLength
@@ -133,6 +152,7 @@ export async function generateAutopsy(
   emotionalState: string,
   pastDecisions: { title: string; raw_input: string; created_at?: string }[],
   cognitiveProfile: Record<string, unknown> | null,
+  pipeline?: Partial<PipelineContext>,
 ): Promise<{
   result: AutopsyResult;
   tokensApprox: number;
@@ -158,23 +178,45 @@ export async function generateAutopsy(
     },
   });
 
+  const relevant = pipeline?.relevantDecisions ?? [];
   const historySnippet =
-    pastDecisions.length > 0
-      ? pastDecisions
-          .slice(0, 10)
+    relevant.length > 0
+      ? relevant
           .map(
             (d, i) =>
               `${i + 1}. ${truncateForPrompt(d.title, 120)}: ${truncateForPrompt(d.raw_input, 400)}`,
           )
           .join("\n")
-      : "None yet.";
+      : pastDecisions.length > 0
+        ? pastDecisions
+            .slice(0, 10)
+            .map(
+              (d, i) =>
+                `${i + 1}. ${truncateForPrompt(d.title, 120)}: ${truncateForPrompt(d.raw_input, 400)}`,
+            )
+            .join("\n")
+        : "None yet.";
 
   const profileSnippet = cognitiveProfile
     ? truncateForPrompt(JSON.stringify(cognitiveProfile), 4000)
     : "None yet.";
 
+  const summarySnippet = pipeline?.historySummary
+    ? truncateForPrompt(pipeline.historySummary, 2000)
+    : "None yet.";
+
+  const onboardingSnippet = pipeline?.onboardingSnippet
+    ? truncateForPrompt(pipeline.onboardingSnippet, 800)
+    : "None yet.";
+
+  const retrievalNote = pipeline?.retrievalMethod
+    ? `Context retrieval method: ${pipeline.retrievalMethod}.`
+    : "";
+
   const userPrompt = `Prompt version: ${AUTOPSY_PROMPT_VERSION}
 Schema version: ${AUTOPSY_SCHEMA_VERSION}
+${pipeline?.pipelineVersion ? `Pipeline version: ${pipeline.pipelineVersion}.` : ""}
+${retrievalNote}
 
 Domain: ${truncateForPrompt(domain, 80)}
 Emotional state when deciding: ${emotionalState}
@@ -182,8 +224,14 @@ Emotional state when deciding: ${emotionalState}
 User's decision narrative:
 ${untrustedBlock("decision_narrative", truncateForPrompt(userInput, 8000))}
 
-Past decisions (for pattern context):
-${untrustedBlock("past_decisions", historySnippet)}
+Onboarding calibration (untrusted):
+${untrustedBlock("onboarding", onboardingSnippet)}
+
+Rolling history summary:
+${untrustedBlock("history_summary", summarySnippet)}
+
+Most relevant past decisions (retrieved):
+${untrustedBlock("relevant_past_decisions", historySnippet)}
 
 Existing cognitive profile snapshot:
 ${untrustedBlock("cognitive_profile", profileSnippet)}
@@ -212,11 +260,15 @@ Return JSON only per the schema. Include estimated rough INR in estimated_cost_c
   const text = result.response.text();
   let validated: AutopsyResult;
   try {
-    const parsed = JSON.parse(extractJson(text));
-    validated = AutopsySchema.parse(parsed);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Invalid Gemini JSON";
-    throw new GeminiInferenceError(message, "parse_error");
+    validated = parseAndValidateAutopsyJson(text);
+  } catch {
+    try {
+      validated = await repairAutopsyJson(model, text);
+    } catch (repairError) {
+      const message =
+        repairError instanceof Error ? repairError.message : "Invalid Gemini JSON";
+      throw new GeminiInferenceError(message, "parse_error");
+    }
   }
 
   const usage = result.response.usageMetadata;

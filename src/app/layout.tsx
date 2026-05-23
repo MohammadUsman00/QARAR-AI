@@ -49,7 +49,7 @@ export default function RootLayout({
       lang="en"
       className={`${cormorant.variable} ${syne.variable} ${dmSans.variable} ${jetbrains.variable}`}
     >
-      <body className="min-h-screen bg-bg-primary">{children}</body>
+      <body className="min-h-screen bg-bg-primary font-sans">{children}</body>
     </html>
   );
 }

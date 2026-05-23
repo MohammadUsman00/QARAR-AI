@@ -34,14 +34,15 @@ export function AppShell({
 
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
-      <aside className="hidden w-64 flex-shrink-0 flex-col border-r border-border-subtle bg-bg-secondary/50 px-4 py-6 md:flex">
-        <Link href="/dashboard" className="mb-10 flex items-center gap-2 px-2">
+      <aside className="relative hidden w-64 flex-shrink-0 flex-col border-r border-border-subtle bg-bg-secondary/80 px-4 py-6 backdrop-blur-md md:flex">
+        <div className="pointer-events-none absolute inset-0 qarar-gradient-bg opacity-60" aria-hidden />
+        <Link href="/dashboard" className="relative z-10 mb-10 flex items-center gap-2 px-2">
           <Brain className="h-7 w-7 text-accent-primary" />
           <div className="font-display text-xl tracking-tight text-text-primary">
             Qarar <span className="text-accent-primary">قرار</span>
           </div>
         </Link>
-        <nav className="flex flex-1 flex-col gap-1">
+        <nav className="relative z-10 flex flex-1 flex-col gap-1">
           {nav.map((item) => {
             const active =
               pathname === item.href || pathname.startsWith(item.href + "/");
@@ -64,7 +65,7 @@ export function AppShell({
             );
           })}
         </nav>
-        <div className="mt-auto space-y-3 rounded-xl border border-border-subtle bg-bg-tertiary/40 p-3">
+        <div className="relative z-10 mt-auto space-y-3 rounded-xl border border-border-subtle bg-bg-tertiary/40 p-3">
           <div className="text-xs text-text-secondary truncate">{userEmail}</div>
           <div className="flex items-center justify-between gap-2">
             <span className="rounded-full border border-border-subtle px-2 py-0.5 text-[10px] uppercase tracking-wider text-accent-primary">
@@ -84,7 +85,7 @@ export function AppShell({
         <div className="mx-auto max-w-6xl px-4 py-6 md:px-8">{children}</div>
       </main>
 
-      <nav className="fixed bottom-0 left-0 right-0 z-40 flex border-t border-border-subtle bg-bg-secondary/95 px-2 py-2 backdrop-blur md:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 flex border-t border-border-subtle bg-bg-secondary/95 px-2 py-2 backdrop-blur-md md:hidden">
         {nav.map((item) => {
           const active =
             pathname === item.href || pathname.startsWith(item.href + "/");

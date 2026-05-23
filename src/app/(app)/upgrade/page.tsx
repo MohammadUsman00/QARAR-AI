@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/layout/page-header";
 import { Check } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -80,19 +81,17 @@ export default function UpgradePage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="font-heading text-3xl text-text-primary">Upgrade</h1>
-          <p className="mt-1 text-sm text-text-secondary">
-            Current plan: <span className="text-accent-primary">{plan}</span>
-          </p>
-        </div>
-        {stripeCustomerId && (
-          <Button variant="outline" onClick={openBillingPortal}>
-            Manage billing
-          </Button>
-        )}
-      </div>
+      <PageHeader
+        title="Upgrade"
+        description={`Current plan: ${plan}`}
+        action={
+          stripeCustomerId ? (
+            <Button variant="outline" onClick={openBillingPortal}>
+              Manage billing
+            </Button>
+          ) : undefined
+        }
+      />
 
       <div className="grid gap-6 md:grid-cols-3">
         {TIERS.map((tier) => (

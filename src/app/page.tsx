@@ -2,6 +2,7 @@
 
 import { DemoTypewriter } from "@/components/marketing/demo-typewriter";
 import { Particles } from "@/components/marketing/particles";
+import { MarketingShell } from "@/components/layout/marketing-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { motion } from "framer-motion";
@@ -40,9 +41,8 @@ const features = [
 
 export default function LandingPage() {
   return (
-    <div className="relative overflow-x-hidden bg-bg-primary">
-      <section className="relative flex min-h-screen flex-col items-center justify-center px-4 py-24">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(107,140,255,0.12),_transparent_55%),radial-gradient(ellipse_at_bottom,_rgba(200,169,81,0.12),_transparent_50%)]" />
+    <MarketingShell>
+      <section className="relative flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center px-4 py-24">
         <Particles />
 
         <motion.div
@@ -292,20 +292,9 @@ export default function LandingPage() {
         </Button>
       </section>
 
-      <footer className="border-t border-border-subtle px-4 py-10 text-center text-sm text-text-tertiary">
-        <div className="flex flex-wrap items-center justify-center gap-6">
-          <Link href="/about" className="hover:text-text-secondary">
-            Privacy
-          </Link>
-          <Link href="/about" className="hover:text-text-secondary">
-            Terms
-          </Link>
-          <a href="mailto:hello@qarar.app" className="hover:text-text-secondary">
-            Contact
-          </a>
-        </div>
-        <p className="mt-6">Made with obsession in Kashmir 🏔️</p>
-      </footer>
-    </div>
+      <p className="border-t border-border-subtle py-8 text-center text-xs text-text-tertiary">
+        Made with obsession in Kashmir
+      </p>
+    </MarketingShell>
   );
 }

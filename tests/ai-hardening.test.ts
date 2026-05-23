@@ -1,6 +1,11 @@
 import { autopsyAnalyzeRequestSchema } from "@/lib/api-validation";
 import { apiErrorMessage } from "@/lib/api-errors";
-import { assertSafeAutopsyOutput, detectCrisisInput } from "@/lib/llm-safety";
+import {
+  assertSafeAutopsyOutput,
+  assertSafeNarrativeOutput,
+  detectCrisisInput,
+} from "@/lib/llm-safety";
+import { autopsyFeedbackSchema } from "@/lib/api-validation";
 import { checkRateLimit } from "@/lib/rate-limit";
 import type { AutopsyResult } from "@/lib/gemini";
 
@@ -89,6 +94,22 @@ describe("AI hardening utilities", () => {
     expect(apiErrorMessage({ error: "provider_error" }, 500)).toContain(
       "temporarily unavailable",
     );
+  });
+
+  test("blocks unsafe pattern narratives", () => {
+    expect(() =>
+      assertSafeNarrativeOutput("You should stop taking medication immediately."),
+    ).toThrow("Unsafe narrative");
+  });
+
+  test("validates autopsy feedback payloads", () => {
+    const parsed = autopsyFeedbackSchema.parse({
+      autopsy_id: "550e8400-e29b-41d4-a716-446655440000",
+      helpful: true,
+      tags: ["too_generic"],
+    });
+    expect(parsed.helpful).toBe(true);
+    expect(parsed.tags).toContain("too_generic");
   });
 
   test("enforces fixed-window rate limits", async () => {

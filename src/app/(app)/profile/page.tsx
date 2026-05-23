@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PageHeader } from "@/components/layout/page-header";
 import {
   Dialog,
   DialogContent,
@@ -166,12 +167,10 @@ export default function ProfilePage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-heading text-3xl text-text-primary">Settings</h1>
-        <p className="mt-1 text-sm text-text-secondary">
-          Account, notifications, privacy, and data.
-        </p>
-      </div>
+      <PageHeader
+        title="Settings"
+        description="Account, notifications, privacy, and data."
+      />
 
       <Tabs defaultValue="account" className="w-full">
         <TabsList className="flex w-full flex-wrap justify-start gap-2">

@@ -47,6 +47,8 @@ create table if not exists public.autopsies (
   schema_version text,
   request_id text,
   latency_ms int,
+  pipeline_version text,
+  retrieval_method text,
   created_at timestamptz default now()
 );
 
@@ -63,8 +65,32 @@ create table if not exists public.cognitive_profiles (
   estimated_total_cost_inr numeric,
   profile_confidence double precision,
   narrative_summary text,
+  history_summary text,
+  pipeline_version text,
   last_updated timestamptz default now()
 );
+
+create table if not exists public.autopsy_feedback (
+  id uuid primary key default gen_random_uuid(),
+  autopsy_id uuid not null references public.autopsies (id) on delete cascade,
+  user_id uuid not null references public.user_profiles (id) on delete cascade,
+  helpful boolean not null,
+  tags text[] default '{}',
+  comment text,
+  created_at timestamptz default now(),
+  unique (autopsy_id, user_id)
+);
+
+create table if not exists public.decision_embeddings (
+  decision_id uuid primary key references public.decisions (id) on delete cascade,
+  user_id uuid not null references public.user_profiles (id) on delete cascade,
+  embedding jsonb not null,
+  model_version text,
+  updated_at timestamptz default now()
+);
+
+create index if not exists idx_decision_embeddings_user
+  on public.decision_embeddings (user_id);
 
 create table if not exists public.pattern_alerts (
   id uuid primary key default gen_random_uuid(),
@@ -89,6 +115,8 @@ alter table public.user_profiles enable row level security;
 alter table public.decisions enable row level security;
 alter table public.autopsies enable row level security;
 alter table public.cognitive_profiles enable row level security;
+alter table public.autopsy_feedback enable row level security;
+alter table public.decision_embeddings enable row level security;
 alter table public.pattern_alerts enable row level security;
 alter table public.ai_rate_limits enable row level security;
 
@@ -110,6 +138,18 @@ create policy "Users CRUD own cognitive profile" on public.cognitive_profiles
 
 create policy "Users CRUD own alerts" on public.pattern_alerts
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+create policy "Users CRUD own autopsy feedback" on public.autopsy_feedback
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+create policy "Users read own decision embeddings" on public.decision_embeddings
+  for select using (auth.uid() = user_id);
+
+create policy "Users insert own decision embeddings" on public.decision_embeddings
+  for insert with check (auth.uid() = user_id);
+
+create policy "Users update own decision embeddings" on public.decision_embeddings
+  for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 create or replace function public.increment_ai_rate_limit(
   p_scope text,

@@ -1,22 +1,25 @@
 import { createClient } from "@/lib/supabase/server";
 import { ensureUserProfile } from "@/lib/profile";
-import { GeminiInferenceError, generateAutopsy } from "@/lib/gemini";
+import { GeminiInferenceError } from "@/lib/gemini";
 import { getPlanLimits } from "@/lib/plan-limits";
 import { parseRoughInr, titleFromInput } from "@/lib/autopsy";
 import {
   autopsyAnalyzeRequestSchema,
   formatZodError,
 } from "@/lib/api-validation";
-import {
-  buildDomainScores,
-  buildMonthlyQualityTrend,
-} from "@/lib/cognitive-aggregate";
 import { createRequestId, logInferenceEvent } from "@/lib/inference-telemetry";
 import {
   assertSafeAutopsyOutput,
   detectCrisisInput,
   safetyDisclaimer,
 } from "@/lib/llm-safety";
+import {
+  buildCognitiveProfileUpdate,
+  computeFeedbackHelpfulRate,
+  embedDecisionNarrative,
+  runAutopsyPipeline,
+} from "@/lib/pipeline/orchestrator";
+import type { OnboardingAnswers, PastDecision } from "@/lib/pipeline/types";
 import { checkRateLimit, rateLimitKey } from "@/lib/rate-limit";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -135,7 +138,7 @@ export async function POST(request: Request) {
 
   const { data: profile } = await supabase
     .from("user_profiles")
-    .select("plan")
+    .select("plan, onboarding_answers")
     .eq("id", user.id)
     .single();
 
@@ -158,12 +161,39 @@ export async function POST(request: Request) {
     );
   }
 
-  const { data: pastDecisions } = await supabase
+  const { data: pastRows } = await supabase
     .from("decisions")
-    .select("title, raw_input, created_at")
+    .select("id, title, raw_input, domain, created_at")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
-    .limit(10);
+    .limit(50);
+
+  const decisionIds = (pastRows ?? []).map((d) => d.id).filter(Boolean);
+  const embeddingMap = new Map<string, number[]>();
+
+  if (decisionIds.length > 0) {
+    const { data: embRows } = await supabase
+      .from("decision_embeddings")
+      .select("decision_id, embedding")
+      .eq("user_id", user.id)
+      .in("decision_id", decisionIds);
+
+    for (const row of embRows ?? []) {
+      const vec = row.embedding as number[] | null;
+      if (Array.isArray(vec) && vec.length > 0) {
+        embeddingMap.set(row.decision_id as string, vec);
+      }
+    }
+  }
+
+  const pastDecisions: PastDecision[] = (pastRows ?? []).map((d) => ({
+    id: d.id,
+    title: d.title,
+    raw_input: d.raw_input,
+    domain: d.domain,
+    created_at: d.created_at,
+    embedding: embeddingMap.get(d.id) ?? null,
+  }));
 
   const { data: cognitiveRow } = await supabase
     .from("cognitive_profiles")
@@ -171,16 +201,23 @@ export async function POST(request: Request) {
     .eq("user_id", user.id)
     .maybeSingle();
 
-  let ai;
+  const onboardingAnswers = (profile?.onboarding_answers ??
+    null) as OnboardingAnswers | null;
+  const existingSummary =
+    (cognitiveRow?.history_summary as string | undefined) ?? null;
+
+  let pipelineOut;
   try {
-    ai = await generateAutopsy(
-      input.raw_input,
-      input.domain,
-      input.emotional_state,
-      pastDecisions ?? [],
-      cognitiveRow ?? null,
-    );
-    assertSafeAutopsyOutput(ai.result);
+    pipelineOut = await runAutopsyPipeline({
+      rawInput: input.raw_input,
+      domain: input.domain,
+      emotionalState: input.emotional_state,
+      pastDecisions,
+      onboardingAnswers,
+      existingHistorySummary: existingSummary,
+      cognitiveProfile: cognitiveRow ?? null,
+    });
+    assertSafeAutopsyOutput(pipelineOut.result);
   } catch (e) {
     const code = e instanceof GeminiInferenceError ? e.code : "provider_error";
     const msg = e instanceof Error ? e.message : "Autopsy failed";
@@ -207,14 +244,16 @@ export async function POST(request: Request) {
 
   const {
     result,
+    pipelineContext,
+    historySummary,
     tokensApprox,
     latencyMs,
     modelVersion,
     promptVersion,
     schemaVersion,
-  } = ai;
-  const estimated_inr = parseRoughInr(result.estimated_cost_context);
+  } = pipelineOut;
 
+  const estimated_inr = parseRoughInr(result.estimated_cost_context);
   const title = titleFromInput(input.raw_input);
 
   const { data: decision, error: dErr } = await supabase
@@ -235,6 +274,19 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: dErr?.message ?? "Could not save decision" },
       { status: 500 },
+    );
+  }
+
+  const embedding = await embedDecisionNarrative(input.raw_input, title);
+  if (embedding) {
+    await supabase.from("decision_embeddings").upsert(
+      {
+        decision_id: decision.id,
+        user_id: user.id,
+        embedding,
+        model_version: "text-embedding-004",
+      },
+      { onConflict: "decision_id" },
     );
   }
 
@@ -261,6 +313,8 @@ export async function POST(request: Request) {
       schema_version: schemaVersion,
       request_id: requestId,
       latency_ms: latencyMs,
+      pipeline_version: pipelineContext.pipelineVersion,
+      retrieval_method: pipelineContext.retrievalMethod,
     })
     .select("id")
     .single();
@@ -274,19 +328,28 @@ export async function POST(request: Request) {
 
   const { data: allAutopsies } = await supabase
     .from("autopsies")
-    .select("cognitive_biases, estimated_cost_inr")
+    .select(
+      "cognitive_biases, emotional_triggers, estimated_cost_inr, created_at",
+    )
     .eq("user_id", user.id);
 
   const { data: allDecisions } = await supabase
     .from("decisions")
-    .select("domain, outcome_rating, created_at")
+    .select("domain, outcome_rating, created_at, emotional_state_before")
     .eq("user_id", user.id);
 
-  const domainScores = buildDomainScores(allDecisions ?? []);
-  const decisionQualityTrend = buildMonthlyQualityTrend(allDecisions ?? []);
+  const feedbackRate = await computeFeedbackHelpfulRate(supabase, user.id);
+  const totalDecisions = used + 1;
+
+  const profileUpdate = buildCognitiveProfileUpdate({
+    autopsies: allAutopsies ?? [],
+    decisions: allDecisions ?? [],
+    totalDecisions,
+    feedbackHelpfulRate: feedbackRate,
+    historySummary,
+  });
 
   const biasCounts: Record<string, number> = {};
-  let totalCost = 0;
   for (const row of allAutopsies ?? []) {
     const biases = row.cognitive_biases as { name?: string }[] | null;
     if (Array.isArray(biases)) {
@@ -296,36 +359,17 @@ export async function POST(request: Request) {
         }
       }
     }
-    if (row.estimated_cost_inr != null) {
-      totalCost += Number(row.estimated_cost_inr);
-    }
   }
 
-  const topBiases = Object.entries(biasCounts)
-    .map(([bias, frequency]) => ({
-      bias,
-      frequency,
-      percentage: Math.min(
-        100,
-        Math.round((frequency / Math.max(used + 1, 1)) * 100),
-      ),
-    }))
-    .sort((a, b) => b.frequency - a.frequency)
-    .slice(0, 8);
-
-  const { error: upsertErr } = await supabase.from("cognitive_profiles").upsert(
-    {
-      user_id: user.id,
-      top_biases: topBiases,
-      domain_scores: domainScores,
-      decision_quality_trend: decisionQualityTrend,
-      total_decisions_analyzed: used + 1,
-      estimated_total_cost_inr: totalCost,
-      profile_confidence: Math.min(0.95, 0.25 + (used + 1) * 0.05),
-      last_updated: new Date().toISOString(),
-    },
-    { onConflict: "user_id" },
-  );
+  const { error: upsertErr } = await supabase
+    .from("cognitive_profiles")
+    .upsert(
+      {
+        user_id: user.id,
+        ...profileUpdate,
+      },
+      { onConflict: "user_id" },
+    );
 
   if (upsertErr) {
     console.error("cognitive profile upsert", upsertErr);
@@ -365,5 +409,10 @@ export async function POST(request: Request) {
     result,
     request_id: requestId,
     safety_disclaimer: safetyDisclaimer(),
+    pipeline: {
+      version: pipelineContext.pipelineVersion,
+      retrieval_method: pipelineContext.retrievalMethod,
+      relevant_decisions_count: pipelineContext.relevantDecisions.length,
+    },
   });
 }
