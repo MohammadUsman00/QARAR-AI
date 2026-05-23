@@ -1,5 +1,8 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { RoyalAmbient } from "@/components/royal/royal-ambient";
+import { RoyalCrest } from "@/components/royal/royal-crest";
+import { RoyalCard } from "@/components/royal/royal-card";
 
 export function AuthShell({
   children,
@@ -11,33 +14,46 @@ export function AuthShell({
   subtitle: string;
 }) {
   return (
-    <div className="grid min-h-screen md:grid-cols-2">
-      <div className="relative hidden flex-col justify-between bg-bg-primary p-10 md:flex">
-        <div className="pointer-events-none absolute inset-0 qarar-gradient-bg" aria-hidden />
-        <Link
-          href="/"
-          className="relative z-10 font-display text-2xl italic text-accent-primary hover:text-accent-secondary"
-        >
-          Qarar — قرار
+    <div className="relative grid min-h-screen md:grid-cols-2">
+      <RoyalAmbient />
+      <div className="relative hidden flex-col justify-between p-10 md:flex">
+        <Link href="/" className="relative z-10 flex items-center gap-3">
+          <RoyalCrest size={36} />
+          <span className="font-royal text-lg uppercase tracking-[0.15em] text-accent-primary">
+            Qarar
+          </span>
         </Link>
-        <blockquote className="relative z-10 max-w-sm font-display text-xl italic leading-relaxed text-text-primary">
-          &ldquo;The first tool built to see your decision patterns with forensic clarity.&rdquo;
-        </blockquote>
-        <p className="relative z-10 text-sm text-text-secondary">
-          Not therapy. Not journaling. Structured autopsy of the decisions you regret.
+        <RoyalCard glow className="relative z-10 max-w-md">
+          <div className="royal-card-inner p-8">
+            <blockquote className="font-display text-2xl italic leading-relaxed text-text-primary">
+              &ldquo;The crown jewel of decision intelligence — see your patterns with royal
+              clarity.&rdquo;
+            </blockquote>
+            <p className="mt-6 font-sans text-sm text-text-secondary">
+              Forensic autopsies. Longitudinal cognitive profiling. Premium pattern intelligence.
+            </p>
+          </div>
+        </RoyalCard>
+        <p className="relative z-10 font-royal text-[10px] uppercase tracking-[0.3em] text-text-tertiary">
+          Not therapy · Precision
         </p>
       </div>
-      <div className="relative flex flex-col justify-center bg-bg-primary px-6 py-12">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(107,140,255,0.08),_transparent_50%)] md:hidden" />
+      <div className="relative flex flex-col justify-center px-6 py-12">
         <div className="relative z-10 mx-auto w-full max-w-md">
           <Link
             href="/"
-            className="mb-8 inline-block font-display text-lg italic text-accent-primary md:hidden"
+            className="mb-8 inline-flex items-center gap-2 md:hidden"
           >
-            Qarar — قرار
+            <RoyalCrest size={24} />
+            <span className="font-royal text-sm uppercase tracking-wider text-accent-primary">
+              Qarar
+            </span>
           </Link>
-          <h1 className="font-heading text-3xl text-text-primary">{title}</h1>
-          <p className="mt-2 text-sm text-text-secondary">{subtitle}</p>
+          <p className="font-royal text-[10px] uppercase tracking-[0.35em] text-accent-royal">
+            Royal access
+          </p>
+          <h1 className="mt-2 font-display text-3xl text-text-primary">{title}</h1>
+          <p className="mt-2 font-sans text-sm text-text-secondary">{subtitle}</p>
           <div className="mt-8">{children}</div>
         </div>
       </div>

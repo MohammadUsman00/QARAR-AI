@@ -2,12 +2,21 @@
 
 import { DemoTypewriter } from "@/components/marketing/demo-typewriter";
 import { Particles } from "@/components/marketing/particles";
+import { RoyalHeroFrame } from "@/components/marketing/royal-hero-frame";
 import { MarketingShell } from "@/components/layout/marketing-shell";
+import { RoyalCard } from "@/components/royal/royal-card";
+import { RoyalCrest } from "@/components/royal/royal-crest";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { motion } from "framer-motion";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, Crown, Sparkles, Zap } from "lucide-react";
 import Link from "next/link";
+
+const stats = [
+  { value: "72h", label: "Impulse window modeled" },
+  { value: "6", label: "Life domains scored" },
+  { value: "AI", label: "Pipeline with memory" },
+];
 
 const problems = [
   "Therapy costs ₹12,000/hour. 6-month waitlist.",
@@ -42,42 +51,81 @@ const features = [
 export default function LandingPage() {
   return (
     <MarketingShell>
-      <section className="relative flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center px-4 py-24">
+      <section className="relative flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center px-4 py-20">
         <Particles />
 
         <motion.div
-          initial={{ opacity: 0, y: 16 }}
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45, ease: "easeOut" }}
-          className="relative z-10 max-w-4xl text-center"
+          transition={{ duration: 0.6, ease: "easeOut" }}
+          className="relative z-10 w-full max-w-5xl"
         >
-          <p className="font-display text-lg italic tracking-[0.35em] text-accent-primary">
-            QARAR — قرار
-          </p>
-          <h1 className="mt-6 font-heading text-4xl font-semibold leading-tight text-text-primary sm:text-5xl md:text-6xl lg:text-7xl">
-            The world finally has a tool
-            <br />
-            to see yourself clearly.
-          </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-lg text-text-secondary">
-            Not therapy. Not journaling. Not self-help.
-            <br />A forensic autopsy of why you made the decision you regret.
-          </p>
-          <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
-            <Button asChild size="lg" className="w-full sm:w-auto">
-              <Link href="/signup">Begin Your First Autopsy</Link>
-            </Button>
-            <Button asChild variant="ghost" size="lg" className="w-full sm:w-auto">
-              <Link href="#how">See How It Works</Link>
-            </Button>
+          <RoyalHeroFrame>
+            <div className="text-center">
+              <motion.div
+                animate={{ y: [0, -6, 0] }}
+                transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-border-subtle bg-royal-deep/50"
+              >
+                <RoyalCrest size={40} />
+              </motion.div>
+              <p className="font-royal text-xs uppercase tracking-[0.45em] text-accent-primary">
+                Royal Decision Intelligence
+              </p>
+              <p className="mt-2 font-display text-xl italic text-accent-royal/90">قرار</p>
+              <h1 className="mt-6 font-display text-4xl font-semibold leading-[1.1] text-text-primary sm:text-5xl md:text-6xl">
+                See your decisions
+                <br />
+                <span className="bg-gradient-to-r from-accent-secondary via-accent-primary to-accent-royal bg-clip-text text-transparent">
+                  with royal clarity
+                </span>
+              </h1>
+              <p className="mx-auto mt-6 max-w-2xl font-sans text-lg text-text-secondary">
+                Not therapy. Not journaling. A forensic autopsy of why you made the decision you
+                regret — powered by a full AI pipeline with memory.
+              </p>
+              <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
+                <Button asChild size="lg" className="royal-btn-shine w-full sm:w-auto">
+                  <Link href="/signup">
+                    <Crown className="h-4 w-4" />
+                    Begin Your First Autopsy
+                  </Link>
+                </Button>
+                <Button asChild variant="royal" size="lg" className="w-full sm:w-auto">
+                  <Link href="#how">Explore the suite</Link>
+                </Button>
+              </div>
+              <p className="mt-6 text-sm text-text-tertiary">
+                Free for your first 3 autopsies · No credit card
+              </p>
+            </div>
+          </RoyalHeroFrame>
+
+          <div className="mt-12 grid grid-cols-3 gap-4">
+            {stats.map((s, i) => (
+              <motion.div
+                key={s.label}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 + i * 0.1 }}
+              >
+                <RoyalCard className="text-center">
+                  <div className="royal-card-inner px-4 py-5">
+                    <div className="font-display text-2xl text-accent-primary md:text-3xl">
+                      {s.value}
+                    </div>
+                    <div className="mt-1 font-royal text-[9px] uppercase tracking-wider text-text-tertiary">
+                      {s.label}
+                    </div>
+                  </div>
+                </RoyalCard>
+              </motion.div>
+            ))}
           </div>
-          <p className="mt-6 text-sm text-text-tertiary">
-            Free for your first 3 autopsies. No credit card.
-          </p>
         </motion.div>
 
         <motion.div
-          className="absolute bottom-10 left-1/2 -translate-x-1/2 text-text-tertiary"
+          className="absolute bottom-8 left-1/2 z-10 -translate-x-1/2 text-accent-primary/50"
           animate={{ y: [0, 6, 0] }}
           transition={{ duration: 2.2, repeat: Infinity }}
         >
@@ -103,7 +151,7 @@ export default function LandingPage() {
             </motion.div>
           ))}
         </div>
-        <p className="mx-auto mt-14 max-w-3xl text-center font-heading text-2xl text-text-primary md:text-3xl">
+        <p className="mx-auto mt-14 max-w-3xl text-center font-display text-2xl text-text-primary md:text-3xl">
           You&apos;ve made this mistake before.
           <br />
           You&apos;ll make it again.
@@ -114,7 +162,7 @@ export default function LandingPage() {
 
       <section className="px-4 py-20">
         <div className="mx-auto max-w-4xl">
-          <h2 className="font-heading text-3xl text-text-primary md:text-4xl">
+          <h2 className="font-display text-3xl text-text-primary md:text-4xl">
             Watch an autopsy unfold
           </h2>
           <p className="mt-3 text-text-secondary">
@@ -128,10 +176,10 @@ export default function LandingPage() {
 
       <section id="how" className="border-t border-border-subtle bg-bg-secondary/30 px-4 py-20">
         <div className="mx-auto max-w-5xl">
-          <h2 className="text-center font-heading text-3xl text-text-primary md:text-4xl">
+          <h2 className="text-center font-display text-3xl text-text-primary md:text-4xl">
             How it works
           </h2>
-          <div className="mt-12 grid gap-8 md:grid-cols-3">
+          <div className="mt-12 grid gap-6 md:grid-cols-3">
             {steps.map((s, i) => (
               <motion.div
                 key={s.title}
@@ -139,23 +187,32 @@ export default function LandingPage() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.08 }}
-                className="rounded-xl border border-border-subtle bg-bg-tertiary/30 p-6"
               >
-                <div className="font-mono text-xs text-accent-neural">
-                  {String(i + 1).padStart(2, "0")}
-                </div>
-                <h3 className="mt-3 font-heading text-lg text-text-primary">
-                  {s.title}
-                </h3>
-                <p className="mt-2 text-sm text-text-secondary">{s.body}</p>
+                <RoyalCard glow={i === 1}>
+                  <div className="royal-card-inner p-6">
+                    <div className="font-royal text-xs text-accent-royal">
+                      Step {String(i + 1).padStart(2, "0")}
+                    </div>
+                    <h3 className="mt-3 font-display text-xl text-text-primary">{s.title}</h3>
+                    <p className="mt-2 font-sans text-sm text-text-secondary">{s.body}</p>
+                  </div>
+                </RoyalCard>
               </motion.div>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="px-4 py-20">
-        <div className="mx-auto grid max-w-6xl gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <section id="features" className="px-4 py-20">
+        <div className="mx-auto max-w-6xl text-center">
+          <p className="font-royal text-[10px] uppercase tracking-[0.35em] text-accent-royal">
+            Royal suite
+          </p>
+          <h2 className="mt-2 font-display text-3xl text-text-primary md:text-4xl">
+            Everything a decision mind needs
+          </h2>
+        </div>
+        <div className="mx-auto mt-12 grid max-w-6xl gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {features.map((f, i) => (
             <motion.div
               key={f}
@@ -163,17 +220,24 @@ export default function LandingPage() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: i * 0.04 }}
-              className="rounded-xl border border-border-subtle bg-bg-secondary/50 p-5"
             >
-              <div className="flex items-start gap-3">
-                <Check className="mt-0.5 h-5 w-5 shrink-0 text-accent-success" />
-                <div>
-                  <div className="font-heading text-lg text-text-primary">{f}</div>
-                  <p className="mt-1 text-sm text-text-secondary">
-                    Precision metrics and narrative, not vague advice.
-                  </p>
+              <RoyalCard glow={i === 0}>
+                <div className="royal-card-inner flex gap-3 p-5">
+                  {i % 3 === 0 ? (
+                    <Sparkles className="h-5 w-5 shrink-0 text-accent-primary" />
+                  ) : i % 3 === 1 ? (
+                    <Zap className="h-5 w-5 shrink-0 text-accent-royal" />
+                  ) : (
+                    <Check className="h-5 w-5 shrink-0 text-accent-success" />
+                  )}
+                  <div>
+                    <div className="font-display text-lg text-text-primary">{f}</div>
+                    <p className="mt-1 font-sans text-sm text-text-secondary">
+                      Precision metrics and narrative, not vague advice.
+                    </p>
+                  </div>
                 </div>
-              </div>
+              </RoyalCard>
             </motion.div>
           ))}
         </div>
@@ -181,7 +245,7 @@ export default function LandingPage() {
 
       <section id="pricing" className="border-t border-border-subtle bg-bg-secondary/40 px-4 py-20">
         <div className="mx-auto max-w-6xl">
-          <h2 className="text-center font-heading text-3xl text-text-primary md:text-4xl">
+          <h2 className="text-center font-display text-3xl text-text-primary md:text-4xl">
             Pricing
           </h2>
           <div className="mt-12 grid gap-6 md:grid-cols-3">
@@ -211,37 +275,30 @@ export default function LandingPage() {
                 ],
               },
             ].map((tier) => (
-              <div
-                key={tier.name}
-                className={`relative rounded-2xl border p-6 ${
-                  tier.popular
-                    ? "border-border-active bg-bg-tertiary/60 shadow-glowGold"
-                    : "border-border-subtle bg-bg-tertiary/30"
-                }`}
-              >
-                {tier.popular && (
-                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-accent-primary px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-bg-primary">
-                    Most popular
-                  </span>
-                )}
-                <div className="font-heading text-xl text-text-primary">
-                  {tier.name}
+              <RoyalCard key={tier.name} glow={tier.popular}>
+                <div className="royal-card-inner relative p-6">
+                  {tier.popular && (
+                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-gradient-to-r from-accent-primary to-accent-royal px-3 py-1 font-royal text-[10px] uppercase tracking-wider text-bg-primary">
+                      Most popular
+                    </span>
+                  )}
+                  <div className="font-royal text-sm uppercase tracking-wider text-text-primary">
+                    {tier.name}
+                  </div>
+                  <div className="mt-4 font-display text-3xl text-accent-primary">{tier.price}</div>
+                  <ul className="mt-6 space-y-2 font-sans text-sm text-text-secondary">
+                    {tier.perks.map((p) => (
+                      <li key={p} className="flex gap-2">
+                        <Check className="mt-0.5 h-4 w-4 shrink-0 text-accent-success" />
+                        {p}
+                      </li>
+                    ))}
+                  </ul>
+                  <Button asChild className="mt-8 w-full royal-btn-shine" variant={tier.popular ? "default" : "outline"}>
+                    <Link href="/signup">Start free</Link>
+                  </Button>
                 </div>
-                <div className="mt-4 font-heading text-3xl text-accent-primary">
-                  {tier.price}
-                </div>
-                <ul className="mt-6 space-y-2 text-sm text-text-secondary">
-                  {tier.perks.map((p) => (
-                    <li key={p} className="flex gap-2">
-                      <Check className="mt-0.5 h-4 w-4 text-accent-success" />
-                      {p}
-                    </li>
-                  ))}
-                </ul>
-                <Button asChild className="mt-8 w-full">
-                  <Link href="/signup">Start free</Link>
-                </Button>
-              </div>
+              </RoyalCard>
             ))}
           </div>
           <p className="mt-8 text-center text-sm text-text-tertiary">
@@ -287,8 +344,11 @@ export default function LandingPage() {
           &ldquo;We built telescopes to see galaxies. We built microscopes to see atoms. Qarar is the
           first tool to see yourself.&rdquo;
         </blockquote>
-        <Button asChild size="lg" className="mt-10">
-          <Link href="/signup">Begin Your First Autopsy</Link>
+        <Button asChild size="lg" className="royal-btn-shine mt-10">
+          <Link href="/signup">
+            <Crown className="h-4 w-4" />
+            Begin Your First Autopsy
+          </Link>
         </Button>
       </section>
 

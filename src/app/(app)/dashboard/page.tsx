@@ -1,11 +1,12 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PageHeader } from "@/components/layout/page-header";
+import { RoyalWelcome } from "@/components/dashboard/royal-welcome";
 import { PatternAlertsPanel } from "@/components/dashboard/pattern-alerts";
+import { RoyalStat } from "@/components/royal/royal-stat";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { ArrowDownRight, ArrowUpRight } from "lucide-react";
+import { BarChart3, Brain, IndianRupee, TrendingUp } from "lucide-react";
 
 const BiasBarChart = dynamic(
   () =>
@@ -41,7 +42,7 @@ export default async function DashboardPage() {
 
   const { data: profile } = await supabase
     .from("user_profiles")
-    .select("plan")
+    .select("plan, full_name")
     .eq("id", user!.id)
     .single();
 
@@ -114,47 +115,50 @@ export default async function DashboardPage() {
   const trendUp =
     qualityScore != null && prevScore != null ? qualityScore >= prevScore : undefined;
 
+  const profileConfidence = Math.round(
+    (Number(cog?.profile_confidence ?? 0.25) || 0.25) * 100,
+  );
+  const topBiasName = topBiases[0]?.bias ?? null;
+
   return (
     <div className="space-y-8">
-      <PageHeader
-        title="Dashboard"
-        description={`Plan: ${profile?.plan ?? "free"} — your decision intelligence at a glance.`}
-        action={
-          <Button asChild>
-            <Link href="/autopsy">New autopsy</Link>
-          </Button>
-        }
+      <RoyalWelcome
+        name={profile?.full_name ?? ""}
+        plan={profile?.plan ?? "free"}
+        totalDecisions={totalDecisions}
+        profileConfidence={profileConfidence}
+        topBias={topBiasName}
+        qualityScore={qualityScore}
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat
-          label="Total decisions analyzed"
+        <RoyalStat
+          label="Decisions analyzed"
           value={String(totalDecisions)}
+          icon={Brain}
         />
-        <Stat
-          label="Patterns identified"
+        <RoyalStat
+          label="Patterns found"
           value={String(topBiases.length)}
+          icon={BarChart3}
         />
-        <Stat
+        <RoyalStat
           label="Est. pattern cost"
-          value={
-            estCost > 0
-              ? `₹${(estCost / 100000).toFixed(1)}L`
-              : "—"
-          }
+          value={estCost > 0 ? `₹${(estCost / 100000).toFixed(1)}L` : "—"}
+          icon={IndianRupee}
         />
-        <Stat
+        <RoyalStat
           label="Decision quality"
-          value={qualityScore != null ? `${qualityScore.toFixed(1)} / 10` : "—"}
+          value={qualityScore != null ? `${qualityScore.toFixed(1)}/10` : "—"}
+          icon={TrendingUp}
           trend={trendUp === undefined ? undefined : trendUp ? "up" : "down"}
+          hint={trendUp === true ? "Improving" : trendUp === false ? "Declining" : undefined}
         />
       </div>
 
       <div>
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-heading text-xl text-text-primary">
-            Recent autopsies
-          </h2>
+          <h2 className="font-display text-xl text-text-primary">Recent autopsies</h2>
           <Button asChild variant="ghost" size="sm">
             <Link href="/history">View all</Link>
           </Button>
@@ -262,37 +266,5 @@ export default async function DashboardPage() {
         </CardContent>
       </Card>
     </div>
-  );
-}
-
-function Stat({
-  label,
-  value,
-  trend,
-}: {
-  label: string;
-  value: string;
-  trend?: "up" | "down";
-}) {
-  return (
-    <Card className="border-border-subtle">
-      <CardContent className="p-5">
-        <div className="text-xs uppercase tracking-wider text-text-tertiary">
-          {label}
-        </div>
-        <div className="mt-2 flex items-end justify-between gap-2">
-          <div className="font-heading text-2xl text-text-primary">{value}</div>
-          {trend && (
-            <span className="text-accent-success">
-              {trend === "up" ? (
-                <ArrowUpRight className="h-5 w-5" />
-              ) : (
-                <ArrowDownRight className="h-5 w-5" />
-              )}
-            </span>
-          )}
-        </div>
-      </CardContent>
-    </Card>
   );
 }

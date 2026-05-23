@@ -11,6 +11,8 @@ import { downloadAutopsyPdf } from "@/lib/pdf-export";
 import { apiErrorMessage } from "@/lib/api-errors";
 import { UpgradeModal } from "@/components/upgrade-modal";
 import { PageHeader } from "@/components/layout/page-header";
+import { RoyalCard } from "@/components/royal/royal-card";
+import { RoyalCrest } from "@/components/royal/royal-crest";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { useAppUi } from "@/stores/use-app";
@@ -406,14 +408,18 @@ export function AutopsyClient() {
             animate={{ opacity: 1, y: 0 }}
             className="space-y-6"
           >
-            <div className="rounded-2xl border border-border-subtle bg-bg-secondary/60 p-6 shadow-glowGold">
-              <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border-subtle pb-4">
-                <div>
-                  <div className="font-mono text-[10px] uppercase tracking-[0.35em] text-accent-primary">
-                    Decision Autopsy
-                  </div>
-                  <div className="mt-2 font-heading text-xl text-text-primary">
-                    Structured analysis
+            <RoyalCard glow>
+              <div className="royal-card-inner p-6 md:p-8">
+              <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border-subtle/80 pb-6">
+                <div className="flex gap-4">
+                  <RoyalCrest size={36} className="hidden sm:block" />
+                  <div>
+                    <div className="font-royal text-[10px] uppercase tracking-[0.35em] text-accent-primary">
+                      Royal Decision Autopsy
+                    </div>
+                    <div className="mt-2 font-display text-2xl text-text-primary">
+                      Structured intelligence report
+                    </div>
                   </div>
                 </div>
               </div>
@@ -525,7 +531,8 @@ export function AutopsyClient() {
                   </pre>
                 </section>
               </div>
-            </div>
+              </div>
+            </RoyalCard>
 
             {safetyNote && (
               <p className="rounded-lg border border-border-subtle bg-bg-tertiary/30 px-4 py-3 text-xs text-text-tertiary">

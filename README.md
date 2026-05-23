@@ -39,7 +39,7 @@ Qarar helps users analyze **regretted decisions** with a consistent forensic fra
 
 The product is a **Next.js 14** (App Router) application backed by **Supabase** (auth + Postgres + RLS), **Google Gemini** (structured inference + embeddings), and **Stripe** (subscriptions). Production controls include Zod validation, durable rate limits, prompt isolation, crisis screening, output safety guards, and structured inference telemetry.
 
-**Design system:** Cormorant Garamond (display), Syne (headings), DM Sans (body), JetBrains Mono (data labels) on a dark gold/neural palette — applied consistently across marketing, auth, and app surfaces via `MarketingShell`, `AuthShell`, and `PageHeader`.
+**Design system:** Cinzel (royal headings), Cormorant Garamond (display), Lora (body), JetBrains Mono (data) on a dark gold/neural palette — applied via `MarketingShell`, `AuthShell`, `PageHeader`, and `src/components/royal/*`.
 
 ---
 
@@ -208,7 +208,7 @@ Successful `POST /api/autopsy/analyze` returns structured `result`, `decision_id
 |-------|---------|
 | Framework | Next.js 14 (App Router), TypeScript |
 | Styling | Tailwind CSS, CSS variables, CVA |
-| Fonts | Cormorant Garamond, Syne, DM Sans, JetBrains Mono |
+| Fonts | Cinzel, Cormorant Garamond, Lora, JetBrains Mono |
 | Validation | Zod |
 | AI | `@google/generative-ai` |
 | Data | `@supabase/supabase-js`, `@supabase/ssr` |
@@ -256,7 +256,7 @@ Generate reference screenshots locally (not required for the app to run):
 npm run capture:ui
 ```
 
-Output: `public/screenshots/` (commit only if you want assets in the repo).
+Output: `public/screenshots/` (PNG files are gitignored; use locally or for docs).
 
 ---
 
@@ -362,6 +362,8 @@ Apply in order in the Supabase SQL editor:
 
 ## Deployment
 
+See **[DEPLOYMENT.md](./DEPLOYMENT.md)** for the full production checklist (env vars, Stripe webhook, Supabase auth URLs, probes).
+
 1. Apply all database migrations (`schema.sql` + `002`–`005`)
 2. Set environment variables on the host (Vercel or Node 18+)
 3. Configure Stripe webhook → `https://<domain>/api/stripe/webhook`
@@ -379,6 +381,7 @@ src/
 │   ├── layout/             # MarketingShell, AuthShell, AppShell, PageHeader
 │   ├── patterns/           # Patterns client (real pipeline data)
 │   ├── dashboard/          # Pattern alerts panel
+│   ├── royal/              # Crest, cards, ambient backgrounds
 │   └── ui/                 # Button, Card, Input, Textarea, Select, …
 ├── lib/
 │   ├── pipeline/           # Orchestrator, retrieval, enrichment

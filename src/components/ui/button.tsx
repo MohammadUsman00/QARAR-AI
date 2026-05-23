@@ -9,11 +9,13 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "bg-accent-primary text-bg-primary hover:bg-accent-secondary shadow-glowGold hover:scale-[1.01]",
+          "royal-btn-shine bg-gradient-to-b from-accent-secondary to-accent-primary font-royal text-sm uppercase tracking-wider text-bg-primary shadow-glowGold hover:scale-[1.02] hover:shadow-glowRoyal",
+        royal:
+          "royal-btn-shine border border-accent-royal/40 bg-royal-deep/80 font-royal text-sm uppercase tracking-wider text-accent-secondary shadow-glowRoyal hover:border-accent-royal hover:bg-royal-purple/40",
         ghost:
-          "border border-border-subtle bg-transparent text-text-primary hover:border-border-active hover:shadow-glowGold hover:scale-[1.01]",
+          "border border-border-subtle bg-transparent font-sans normal-case tracking-normal text-text-primary hover:border-border-active hover:shadow-glowGold hover:scale-[1.01]",
         outline:
-          "border border-border-active bg-bg-secondary text-text-primary hover:bg-bg-tertiary",
+          "border border-border-active bg-bg-secondary/80 font-sans normal-case tracking-normal text-text-primary backdrop-blur-sm hover:bg-bg-tertiary",
         danger: "bg-accent-danger/90 text-white hover:bg-accent-danger",
         link: "text-accent-primary underline-offset-4 hover:underline min-h-0 px-0",
       },

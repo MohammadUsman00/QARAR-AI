@@ -20,9 +20,15 @@ const config: Config = {
           secondary: "var(--bg-secondary)",
           tertiary: "var(--bg-tertiary)",
         },
+        royal: {
+          deep: "var(--royal-deep)",
+          purple: "var(--royal-purple)",
+        },
         accent: {
           primary: "var(--accent-primary)",
           secondary: "var(--accent-secondary)",
+          royal: "var(--accent-royal)",
+          "royal-dim": "var(--accent-royal-dim)",
           danger: "var(--accent-danger)",
           success: "var(--accent-success)",
           neural: "var(--accent-neural)",
@@ -37,13 +43,15 @@ const config: Config = {
         },
       },
       fontFamily: {
+        royal: ["var(--font-cinzel)", "serif"],
         display: ["var(--font-cormorant)", "serif"],
-        heading: ["var(--font-syne)", "sans-serif"],
-        sans: ["var(--font-dm)", "sans-serif"],
+        heading: ["var(--font-cinzel)", "serif"],
+        sans: ["var(--font-lora)", "Georgia", "serif"],
         mono: ["var(--font-jetbrains)", "monospace"],
       },
       boxShadow: {
         glowGold: "var(--glow-gold)",
+        glowRoyal: "var(--glow-royal)",
         glowNeural: "var(--glow-neural)",
       },
       keyframes: {
@@ -55,10 +63,19 @@ const config: Config = {
           "0%, 100%": { transform: "translateY(0)" },
           "50%": { transform: "translateY(-6px)" },
         },
+        "royal-float": {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-8px)" },
+        },
+        "royal-shimmer": {
+          "0%, 100%": { transform: "translateX(-100%)" },
+          "50%": { transform: "translateX(100%)" },
+        },
       },
       animation: {
         "pulse-gold": "pulse-gold 1.8s ease-in-out infinite",
         float: "float 4s ease-in-out infinite",
+        "royal-float": "royal-float 5s ease-in-out infinite",
       },
     },
   },
